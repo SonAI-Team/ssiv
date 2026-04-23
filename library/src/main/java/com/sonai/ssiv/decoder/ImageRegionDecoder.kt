@@ -13,10 +13,10 @@ import android.net.Uri
 interface ImageRegionDecoder {
 
     /**
-     * Initialise the decoder. When possible, perform initial setup work once in this method. The
+     * Initialize the decoder. When possible, perform initial setup work once in this method. The
      * dimensions of the image must be returned. The URI can be in one of the following formats:
      * <br>
-     * File: `file:///scard/picture.jpg`
+     * File: `file:///sdcard/picture.jpg`
      * <br>
      * Asset: `file:///android_asset/picture.png`
      * <br>
@@ -47,14 +47,12 @@ interface ImageRegionDecoder {
     fun decodeRegion(sRect: Rect, sampleSize: Int): Bitmap?
 
     /**
-     * Status check. Should return false before initialisation and after recycle.
+     * Status check. Should return false before initialization and after recycle.
      * @return true if the decoder is ready to be used.
      */
     fun isReady(): Boolean
 
-    /**
-     * This method will be called when the decoder is no longer required. It should clean up any resources still in use.
-     */
+    // This method will be called when the decoder is no longer required. It should clean up any resources still in use.
     fun recycle()
 
 }

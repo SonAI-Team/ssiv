@@ -6,11 +6,10 @@ import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
-import android.text.TextUtils
 import androidx.annotation.Keep
+import androidx.core.text.isDigitsOnly
 import com.sonai.ssiv.SubsamplingScaleImageView
 import java.io.InputStream
-import androidx.core.text.isDigitsOnly
 
 /**
  * Default implementation of [SSIVImageDecoder]

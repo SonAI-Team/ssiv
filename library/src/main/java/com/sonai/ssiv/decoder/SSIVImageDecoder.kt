@@ -13,7 +13,7 @@ interface SSIVImageDecoder {
     /**
      * Decode an image. The URI can be in one of the following formats:
      * <br>
-     * File: `file:///scard/picture.jpg`
+     * File: `file:///sdcard/picture.jpg`
      * <br>
      * Asset: `file:///android_asset/picture.png`
      * <br>

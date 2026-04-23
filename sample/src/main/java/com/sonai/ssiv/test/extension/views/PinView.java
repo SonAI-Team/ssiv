@@ -3,6 +3,9 @@ package com.sonai.ssiv.test.extension.views;
 import android.content.Context;
 import android.graphics.*;
 import android.util.AttributeSet;
+
+import androidx.annotation.NonNull;
+
 import com.sonai.ssiv.SubsamplingScaleImageView;
 import com.sonai.ssiv.test.R.drawable;
 
@@ -38,7 +41,7 @@ public class PinView extends SubsamplingScaleImageView {
     }
 
     @Override
-    protected void onDraw(Canvas canvas) {
+    protected void onDraw(@NonNull Canvas canvas) {
         super.onDraw(canvas);
 
         // Don't draw pin before image is ready so it doesn't move around during setup.
@@ -50,7 +53,7 @@ public class PinView extends SubsamplingScaleImageView {
 
         if (sPin != null && pin != null) {
             sourceToViewCoord(sPin, vPin);
-            float vX = vPin.x - (pin.getWidth()/2);
+            float vX = vPin.x - ((float) pin.getWidth() /2);
             float vY = vPin.y - pin.getHeight();
             canvas.drawBitmap(pin, vX, vY, paint);
         }

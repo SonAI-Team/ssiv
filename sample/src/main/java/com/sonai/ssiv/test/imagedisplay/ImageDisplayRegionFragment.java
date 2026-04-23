@@ -31,13 +31,9 @@ public class ImageDisplayRegionFragment extends Fragment {
         imageView.setImage(ImageSource.asset("card.png").region(new Rect(5200, 651, 8200, 3250)));
         final ImageDisplayActivity activity = (ImageDisplayActivity)getActivity();
         if (activity != null) {
-            rootView.findViewById(id.previous).setOnClickListener(new View.OnClickListener() {
-                @Override public void onClick(View v) { activity.previous(); }
-            });
+            rootView.findViewById(id.previous).setOnClickListener(v -> activity.previous());
         }
-        rootView.findViewById(id.rotate).setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { imageView.setOrientation((imageView.getOrientation() + 90) % 360); }
-        });
+        rootView.findViewById(id.rotate).setOnClickListener(v -> imageView.setOrientation((imageView.getOrientation() + 90) % 360));
         return rootView;
     }
 

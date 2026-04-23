@@ -3,9 +3,7 @@ package com.sonai.ssiv
 import android.graphics.PointF
 import java.io.Serializable
 
-/**
- * Wraps the scale, center and orientation of a displayed image for easy restoration on screen rotate.
- */
+// Wraps the scale, center and orientation of a displayed image for easy restoration on screen rotate.
 class ImageViewState(val scale: Float, center: PointF, val orientation: Int) : Serializable {
 
     private val centerX: Float = center.x

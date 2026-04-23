@@ -5,6 +5,9 @@ import android.graphics.*;
 import android.graphics.Paint.Cap;
 import android.graphics.Paint.Style;
 import android.util.AttributeSet;
+
+import androidx.annotation.NonNull;
+
 import com.sonai.ssiv.SubsamplingScaleImageView;
 
 public class CircleView extends SubsamplingScaleImageView {
@@ -30,7 +33,7 @@ public class CircleView extends SubsamplingScaleImageView {
     }
 
     @Override
-    protected void onDraw(Canvas canvas) {
+    protected void onDraw(@NonNull Canvas canvas) {
         super.onDraw(canvas);
 
         // Don't draw pin before image is ready so it doesn't move around during setup.
@@ -38,7 +41,7 @@ public class CircleView extends SubsamplingScaleImageView {
             return;
         }
 
-        sCenter.set(getSWidth()/2, getSHeight()/2);
+        sCenter.set((float) getSWidth() /2, (float) getSHeight() /2);
         sourceToViewCoord(sCenter, vCenter);
         float radius = (getScale() * getSWidth()) * 0.25f;
 

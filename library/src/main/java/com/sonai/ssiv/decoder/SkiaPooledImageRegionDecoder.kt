@@ -12,20 +12,17 @@ import android.graphics.BitmapRegionDecoder
 import android.graphics.Point
 import android.graphics.Rect
 import android.net.Uri
-import android.os.Build
 import android.util.Log
 import androidx.annotation.Keep
 import androidx.core.text.isDigitsOnly
 import com.sonai.ssiv.SubsamplingScaleImageView
 import java.io.File
-import java.io.FileFilter
 import java.io.InputStream
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReadWriteLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
-import java.util.regex.Pattern
 
 /**
  * <p>
@@ -175,7 +172,7 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
                 inputStream?.let {
                     try {
                         it.close()
-                    } catch (e: Exception) { /* Ignore */
+                    } catch (e: Exception) { // Ignore
                     }
                 }
             }
@@ -328,26 +325,7 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
     }
 
     private fun getNumberOfCores(): Int {
-        return if (Build.VERSION.SDK_INT >= 17) {
-            Runtime.getRuntime().availableProcessors()
-        } else {
-            getNumCoresOldPhones()
-        }
-    }
-
-    private fun getNumCoresOldPhones(): Int {
-        class CpuFilter : FileFilter {
-            override fun accept(pathname: File): Boolean {
-                return Pattern.matches("cpu[0-9]+", pathname.name)
-            }
-        }
-        return try {
-            val dir = File("/sys/devices/system/cpu/")
-            val files = dir.listFiles(CpuFilter())
-            files?.size ?: 1
-        } catch (e: Exception) {
-            1
-        }
+        return Runtime.getRuntime().availableProcessors()
     }
 
     private fun isLowMemory(): Boolean {
@@ -375,10 +353,5 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         private const val ASSET_PREFIX = "$FILE_PREFIX/android_asset/"
         private const val RESOURCE_PREFIX = "${ContentResolver.SCHEME_ANDROID_RESOURCE}://"
 
-        @JvmStatic
-        @Keep
-        fun setDebug(debug: Boolean) {
-            this.debug = debug
-        }
     }
 }

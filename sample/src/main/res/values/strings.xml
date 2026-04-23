@@ -50,7 +50,7 @@
     <string name="event.title">Event handling</string>
     <string name="event.p1.subtitle">Simple events</string>
     <string name="event.p1.text">
-        Touch handling by the image view doesn\'t prevent normal events from working.
+        Touch handling by the image view doesn’t prevent normal events from working.
     </string>
     <string name="event.p2.subtitle">OnClickListener</string>
     <string name="event.p2.text">
@@ -74,14 +74,14 @@
     </string>
     <string name="advancedevent.p3.subtitle">onDoubleTap</string>
     <string name="advancedevent.p3.text">onDoubleTap has been overridden. Tap the image to see
-        coordinates. This overrides the default zoom in behaviour.
+        coordinates. This overrides the default zoom in behavior.
     </string>
     <string name="advancedevent.p4.subtitle">onLongPress</string>
     <string name="advancedevent.p4.text">onLongPress has been overridden. Press and hold the image
         to see coordinates.
     </string>
     <string name="advancedevent.p5.subtitle">Other events</string>
-    <string name="advancedevent.p5.text">You can override any event you want, but customising swipe,
+    <string name="advancedevent.p5.text">You can override any event you want, but customizing swipe,
         fling and zoom gestures will stop the view working normally.
     </string>
 
@@ -143,16 +143,16 @@
     <string name="configuration.title">Configuration</string>
     <string name="configuration.p1.subtitle">Maximum scale</string>
     <string name="configuration.p1.text">
-        The maximum scale has been set to 50dpi. You can zoom in until the image is very pixellated.
+        The maximum scale has been set to 50dpi. You can zoom in until the image is very pixelated.
     </string>
     <string name="configuration.p2.subtitle">Minimum tile DPI</string>
     <string name="configuration.p2.text">
         The minimum tile DPI has been set to 50dpi, to reduce
-        memory usage. The next layer of tiles will not be loaded until the image is very pixellated.
+        memory usage. The next layer of tiles will not be loaded until the image is very pixelated.
     </string>
     <string name="configuration.p3.subtitle">Pan disabled</string>
     <string name="configuration.p3.text">
-        Dragging has been disabled. You can only zoom in to the centre point.
+        Dragging has been disabled. You can only zoom in to the center point.
     </string>
     <string name="configuration.p4.subtitle">Zoom disabled</string>
     <string name="configuration.p4.text">
@@ -168,11 +168,11 @@
     <string name="configuration.p7.text">The double tap zoom scale has been set to 240dpi.</string>
     <string name="configuration.p8.subtitle">Pan limit center</string>
     <string name="configuration.p8.text">
-        The pan limit has been changed to PAN_LIMIT_CENTER. Panning stops when a corner reaches the centre of the screen.
+        The pan limit has been changed to PAN_LIMIT_CENTER. Panning stops when a corner reaches the center of the screen.
     </string>
     <string name="configuration.p9.subtitle">Pan limit outside</string>
     <string name="configuration.p9.text">
-        The pan limit has been changed to PAN_LIMIT_OUTSIDE. Panning stops when the image is just off screen.
+        The pan limit has been changed to PAN_LIMIT_OUTSIDE. Panning stops when the image is just off-screen.
     </string>
     <string name="configuration.p10.subtitle">Debug</string>
     <string name="configuration.p10.text">

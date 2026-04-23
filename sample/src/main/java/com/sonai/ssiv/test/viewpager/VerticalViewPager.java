@@ -1,5 +1,6 @@
 package com.sonai.ssiv.test.viewpager;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import androidx.annotation.NonNull;
 import androidx.viewpager.widget.ViewPager;
@@ -59,6 +60,7 @@ public class VerticalViewPager extends ViewPager {
         return intercepted;
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
         return super.onTouchEvent(swapXY(ev));

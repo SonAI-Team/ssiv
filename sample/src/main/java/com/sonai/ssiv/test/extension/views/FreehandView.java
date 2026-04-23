@@ -1,5 +1,6 @@
 package com.sonai.ssiv.test.extension.views;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.*;
 import android.graphics.Paint.Cap;
@@ -13,6 +14,7 @@ import com.sonai.ssiv.SubsamplingScaleImageView;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class FreehandView extends SubsamplingScaleImageView implements OnTouchListener {
 
@@ -48,6 +50,7 @@ public class FreehandView extends SubsamplingScaleImageView implements OnTouchLi
         return false;
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouchEvent(@NonNull MotionEvent event) {
         if (sPoints != null && !drawing) {
@@ -67,8 +70,9 @@ public class FreehandView extends SubsamplingScaleImageView implements OnTouchLi
                 break;
             case MotionEvent.ACTION_MOVE:
                 PointF sCurrentF = viewToSourceCoord(event.getX(), event.getY());
+                assert sCurrentF != null;
                 PointF sCurrent = new PointF(sCurrentF.x, sCurrentF.y);
-                PointF sStart = vStart == null ? null : new PointF(viewToSourceCoord(vStart).x, viewToSourceCoord(vStart).y);
+                PointF sStart = vStart == null ? null : new PointF(Objects.requireNonNull(viewToSourceCoord(vStart)).x, Objects.requireNonNull(viewToSourceCoord(vStart)).y);
 
                 if (touchCount == 1 && vStart != null) {
                     float vDX = Math.abs(event.getX() - vPrevious.x);
@@ -102,7 +106,7 @@ public class FreehandView extends SubsamplingScaleImageView implements OnTouchLi
     }
 
     @Override
-    protected void onDraw(Canvas canvas) {
+    protected void onDraw(@NonNull Canvas canvas) {
         super.onDraw(canvas);
 
         // Don't draw anything before image is ready.

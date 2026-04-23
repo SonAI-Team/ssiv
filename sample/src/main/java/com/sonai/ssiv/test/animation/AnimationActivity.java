@@ -3,7 +3,6 @@ package com.sonai.ssiv.test.animation;
 import android.graphics.PointF;
 import android.os.Bundle;
 import androidx.annotation.Nullable;
-import android.view.View;
 
 import com.sonai.ssiv.ImageSource;
 import com.sonai.ssiv.SubsamplingScaleImageView.AnimationBuilder;
@@ -35,9 +34,7 @@ public class AnimationActivity extends AbstractPagesActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        findViewById(id.play).setOnClickListener(new OnClickListener() {
-            @Override public void onClick(View v) { AnimationActivity.this.play(); }
-        });
+        findViewById(id.play).setOnClickListener(v -> AnimationActivity.this.play());
         view = findViewById(id.imageView);
         view.setImage(ImageSource.asset("sanmartino.jpg"));
     }
@@ -60,6 +57,7 @@ public class AnimationActivity extends AbstractPagesActivity {
             PointF center = new PointF(random.nextInt(view.getSWidth()), random.nextInt(view.getSHeight()));
             view.setPin(center);
             AnimationBuilder animationBuilder = view.animateScaleAndCenter(scale, center);
+            assert animationBuilder != null;
             if (getPage() == 3) {
                 animationBuilder.withDuration(2000).withEasing(EASE_OUT_QUAD).withInterruptible(false).start();
             } else {

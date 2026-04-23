@@ -19,12 +19,8 @@ public class ExtensionCircleFragment extends Fragment {
         View rootView = inflater.inflate(layout.extension_circle_fragment, container, false);
         final ExtensionActivity activity = (ExtensionActivity)getActivity();
         if (activity != null) {
-            rootView.findViewById(id.next).setOnClickListener(new View.OnClickListener() {
-                @Override public void onClick(View v) { activity.next(); }
-            });
-            rootView.findViewById(id.previous).setOnClickListener(new View.OnClickListener() {
-                @Override public void onClick(View v) { activity.previous(); }
-            });
+            rootView.findViewById(id.next).setOnClickListener(v -> activity.next());
+            rootView.findViewById(id.previous).setOnClickListener(v -> activity.previous());
         }
         SubsamplingScaleImageView imageView = rootView.findViewById(id.imageView);
         imageView.setImage(ImageSource.asset("sanmartino.jpg"));

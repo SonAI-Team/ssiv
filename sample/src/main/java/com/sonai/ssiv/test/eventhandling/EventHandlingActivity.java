@@ -1,7 +1,6 @@
 package com.sonai.ssiv.test.eventhandling;
 
 import android.os.Bundle;
-import android.view.View;
 import android.widget.Toast;
 
 import com.sonai.ssiv.ImageSource;
@@ -30,12 +29,8 @@ public class EventHandlingActivity extends AbstractPagesActivity {
         super.onCreate(savedInstanceState);
         SubsamplingScaleImageView imageView = findViewById(id.imageView);
         imageView.setImage(ImageSource.asset("sanmartino.jpg"));
-        imageView.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { Toast.makeText(v.getContext(), "Clicked", Toast.LENGTH_SHORT).show(); }
-        });
-        imageView.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override public boolean onLongClick(View v) { Toast.makeText(v.getContext(), "Long clicked", Toast.LENGTH_SHORT).show(); return true; }
-        });
+        imageView.setOnClickListener(v -> Toast.makeText(v.getContext(), "Clicked", Toast.LENGTH_SHORT).show());
+        imageView.setOnLongClickListener(v -> { Toast.makeText(v.getContext(), "Long clicked", Toast.LENGTH_SHORT).show(); return true; });
     }
 
 }

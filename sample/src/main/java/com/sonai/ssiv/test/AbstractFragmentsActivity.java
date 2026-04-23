@@ -2,6 +2,8 @@ package com.sonai.ssiv.test;
 
 import android.app.ActionBar;
 import android.os.Bundle;
+
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.FragmentActivity;
 import android.view.MenuItem;
@@ -53,7 +55,7 @@ public abstract class AbstractFragmentsActivity extends FragmentActivity {
     }
 
     @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         finish();
         return true;
     }

@@ -2,11 +2,14 @@ package com.sonai.ssiv.decoder
 
 import android.content.ContentResolver
 import android.content.Context
-import android.graphics.*
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.BitmapRegionDecoder
+import android.graphics.Point
+import android.graphics.Rect
 import android.net.Uri
-import android.os.Build
-import android.text.TextUtils
 import androidx.annotation.Keep
+import androidx.core.text.isDigitsOnly
 import com.sonai.ssiv.SubsamplingScaleImageView
 import java.io.InputStream
 import java.util.concurrent.locks.Lock
@@ -19,7 +22,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
  * works well in most circumstances and has reasonable performance due to the cached decoder instance,
  * however it has some problems with grayscale, indexed and CMYK images.
  *
- * A [ReadWriteLock] is used to delegate responsibility for multi threading behaviour to the
+ * A [ReadWriteLock] is used to delegate responsibility for multi threading behavior to the
  * [BitmapRegionDecoder] instance on SDK >= 21, whilst allowing this class to block until no
  * tiles are being loaded before recycling the decoder. In practice, [BitmapRegionDecoder] is
  * synchronized internally so this has no real impact on performance.
@@ -55,7 +58,7 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
             val size = segments.size
             if (size == 2 && segments[0] == "drawable") {
                 id = res.getIdentifier(segments[1], "drawable", uri.authority)
-            } else if (size == 1 && TextUtils.isDigitsOnly(segments[0])) {
+            } else if (size == 1 && segments[0].isDigitsOnly()) {
                 try {
                     id = segments[0].toInt()
                 } catch (ignored: NumberFormatException) {
@@ -80,7 +83,7 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
                 inputStream?.let {
                     try {
                         it.close()
-                    } catch (e: Exception) { /* Ignore */
+                    } catch (e: Exception) { // Ignore
                     }
                 }
             }
@@ -88,7 +91,7 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
         return Point(decoder!!.width, decoder!!.height)
     }
 
-    override fun decodeRegion(sRect: Rect, sampleSize: Int): Bitmap? {
+    override fun decodeRegion(sRect: Rect, sampleSize: Int): Bitmap {
         val lock = getDecodeLock()
         lock.lock()
         try {
@@ -97,9 +100,7 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
                 options.inSampleSize = sampleSize
                 options.inPreferredConfig = bitmapConfig
                 val bitmap = decoder!!.decodeRegion(sRect, options)
-                if (bitmap == null) {
-                    throw RuntimeException("Skia image decoder returned null bitmap - image format may not be supported")
-                }
+                    ?: throw RuntimeException("Skia image decoder returned null bitmap - image format may not be supported")
                 return bitmap
             } else {
                 throw IllegalStateException("Cannot decode region after decoder has been recycled")
@@ -126,11 +127,7 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
     }
 
     private fun getDecodeLock(): Lock {
-        return if (Build.VERSION.SDK_INT < 21) {
-            decoderLock.writeLock()
-        } else {
-            decoderLock.readLock()
-        }
+        return decoderLock.readLock()
     }
 
     companion object {
