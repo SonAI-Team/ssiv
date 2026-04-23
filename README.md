@@ -1,22 +1,21 @@
 Subsampling Scale Image View
 ===========================
 
-A custom image view for Android, designed for photo galleries and displaying huge images (e.g. maps and building plans) without `OutOfMemoryError`s. Includes pinch to zoom, panning, rotation and animation support, and allows easy extension so you can add your own overlays and touch event detection.
+A custom image view for Android, inspired on the original Subsampling Scale Image View made by Dave Morrissey, designed for photo galleries and displaying huge images (e.g. maps and building plans) without `OutOfMemoryError`s. Includes pinch to zoom, panning, rotation and animation support, and allows easy extension so you can add your own overlays and touch event detection.
 
-The view optionally uses subsampling and tiles to support very large images - a low resolution base layer is loaded and as you zoom in, it is overlaid with smaller high resolution tiles for the visible area. This avoids holding too much data in memory. It's ideal for displaying large images while allowing you to zoom in to the high resolution details. You can disable tiling for smaller images and when displaying a bitmap object. There are some advantages and disadvantages to disabling tiling so to decide which is best, see [the wiki](https://github.com/davemorrissey/subsampling-scale-image-view/wiki/02.-Displaying-images).
+The view optionally uses subsampling and tiles to support very large images - a low resolution base layer is loaded and as you zoom in, it is overlaid with smaller high resolution tiles for the visible area. This avoids holding too much data in memory. It's ideal for displaying large images while allowing you to zoom in to the high resolution details. You can disable tiling for smaller images and when displaying a bitmap object. There are some advantages and disadvantages to disabling tiling so to decide which is best, see [the wiki](https://github.com/SonAI-Team/ssiv/wiki/02.-Displaying-images).
 
 #### Guides
 
-* [Releases & downloads](https://github.com/davemorrissey/subsampling-scale-image-view/releases)
-* [Installation and setup](https://github.com/davemorrissey/subsampling-scale-image-view/wiki/01.-Setup)
-* [Image display notes & limitations](https://github.com/davemorrissey/subsampling-scale-image-view/wiki/02.-Displaying-images)
-* [Using preview images](https://github.com/davemorrissey/subsampling-scale-image-view/wiki/03.-Preview-images)
-* [Handling orientation changes](https://github.com/davemorrissey/subsampling-scale-image-view/wiki/05.-Orientation-changes)
-* [Advanced configuration](https://github.com/davemorrissey/subsampling-scale-image-view/wiki/07.-Configuration)
-* [Event handling](https://github.com/davemorrissey/subsampling-scale-image-view/wiki/09.-Events)
-* [Animation](https://github.com/davemorrissey/subsampling-scale-image-view/wiki/08.-Animation)
-* [Extension](https://github.com/davemorrissey/subsampling-scale-image-view/wiki/10.-Extension)
-* [Reference (JavaDocs)](http://davemorrissey.github.io/subsampling-scale-image-view/javadoc/)
+* [Releases & downloads](https://github.com/SonAI-Team/ssiv/releases)
+* [Installation and setup](https://github.com/SonAI-Team/ssiv/wiki/01.-Setup)
+* [Image display notes & limitations](https://github.com/SonAI-Team/ssiv/wiki/02.-Displaying-images)
+* [Using preview images](https://github.com/SonAI-Team/ssiv/wiki/03.-Preview-images)
+* [Handling orientation changes](https://github.com/SonAI-Team/ssiv/wiki/05.-Orientation-changes)
+* [Advanced configuration](https://github.com/SonAI-Team/ssiv/wiki/07.-Configuration)
+* [Event handling](https://github.com/SonAI-Team/ssiv/wiki/09.-Events)
+* [Animation](https://github.com/SonAI-Team/ssiv/wiki/08.-Animation)
+* [Extension](https://github.com/SonAI-Team/ssiv/wiki/10.-Extension)
 
 ## Features
 
@@ -50,7 +49,7 @@ The view optionally uses subsampling and tiles to support very large images - a 
 #### Animation
 
 * Public methods for animating the scale and center
-* Customisable duration and easing
+* Customizable duration and easing
 * Optional uninterruptible animations
 
 #### Overridable event detection
@@ -64,62 +63,6 @@ The view optionally uses subsampling and tiles to support very large images - a 
 * Can be extended to add overlay graphics that move and scale with the image
 * Handles view resizing and `wrap_content` layout
 
-## Quick start
-
-**1)** Add this library as a dependency in your app's build.gradle file.
-
-```gradle
-dependencies {
-    implementation 'com.davemorrissey.labs:subsampling-scale-image-view:3.10.0'
-}
-```
-
-If your project uses AndroidX, change the artifact name as follows:
-
-```gradle
-dependencies {
-    implementation 'com.davemorrissey.labs:subsampling-scale-image-view-androidx:3.10.0'
-}
-```
-
-**2)** Add the view to your layout XML.
-
-```xml
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent" >
-
-    <com.sonai.ssiv.SubsamplingScaleImageView
-        android:id="@+id/imageView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"/>
-
-</LinearLayout>
-```
-
-**3a)** Now, in your fragment or activity, set the image resource, asset name or file path.
-
-```java
-SubsamplingScaleImageView imageView = (SubsamplingScaleImageView)findViewById(id.imageView);
-imageView.setImage(ImageSource.resource(R.drawable.monkey));
-// ... or ...
-imageView.setImage(ImageSource.asset("map.png"))
-// ... or ...
-imageView.setImage(ImageSource.uri("/sdcard/DCIM/DSCM00123.JPG"));
-```
-
-**3b)** Or, if you have a `Bitmap` object in memory, load it into the view. This is unsuitable for large images because it bypasses subsampling - you may get an `OutOfMemoryError`.
-
-```java
-SubsamplingScaleImageView imageView = (SubsamplingScaleImageView)findViewById(id.imageView);
-imageView.setImage(ImageSource.bitmap(bitmap));
-```
-
-## Photo credits
-
-* San Martino by Luca Bravo, via [unsplash.com](https://unsplash.com/photos/lWAOc0UuJ-A)
-* Swiss Road by Ludovic Fremondiere, via [unsplash.com](https://unsplash.com/photos/3XN-BNRDUyY)
-
 ## About
 
-Copyright 2018 David Morrissey, and licensed under the Apache License, Version 2.0. No attribution is necessary but it's very much appreciated. Star this project if you like it!
+Copyright 2026 SonAI-Team, and licensed under the Apache License, Version 2.0. No attribution is necessary, but it's very much appreciated. Star this project if you like it!
