@@ -20,6 +20,6 @@
 
     </RelativeLayout>
 
-    <com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView style="@style/mainPanel" android:id="@+id/imageView"/>
+    <com.sonai.ssiv.SubsamplingScaleImageView style="@style/mainPanel" android:id="@+id/imageView"/>
 
 </RelativeLayout>

@@ -18,20 +18,6 @@ The view optionally uses subsampling and tiles to support very large images - a 
 * [Extension](https://github.com/davemorrissey/subsampling-scale-image-view/wiki/10.-Extension)
 * [Reference (JavaDocs)](http://davemorrissey.github.io/subsampling-scale-image-view/javadoc/)
 
-#### Migration guides
-
-Versions 3.9.0, 3.8.0 and 3.0.0 contain breaking changes. Migration instructions can be found [in the wiki](https://github.com/davemorrissey/subsampling-scale-image-view/wiki/X.--Migration-guides).
-
-#### Download the sample app
-
-[![Get it on Google Play](docs/images/google_play.png)](https://play.google.com/store/apps/details?id=com.davemorrissey.labs.subscaleview.sample)
-
-[Kotlin Sample App on GitHub](https://github.com/davemorrissey/ssiv-kotlin-sample)
-
-#### Demo
-
-![Demo](docs/images/demo.gif)
-
 ## Features
 
 #### Image display
@@ -103,7 +89,7 @@ dependencies {
     android:layout_width="match_parent"
     android:layout_height="match_parent" >
 
-    <com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
+    <com.sonai.ssiv.SubsamplingScaleImageView
         android:id="@+id/imageView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"/>
