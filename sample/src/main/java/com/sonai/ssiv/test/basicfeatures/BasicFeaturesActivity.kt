@@ -1,36 +1,25 @@
-package com.sonai.ssiv.test.basicfeatures;
+package com.sonai.ssiv.test.basicfeatures
 
-import android.os.Bundle;
-import androidx.annotation.Nullable;
+import android.os.Bundle
+import com.sonai.ssiv.ImageSource
+import com.sonai.ssiv.SubsamplingScaleImageView
+import com.sonai.ssiv.test.AbstractPagesActivity
+import com.sonai.ssiv.test.Page
+import com.sonai.ssiv.test.R
 
-import com.sonai.ssiv.ImageSource;
-import com.sonai.ssiv.SubsamplingScaleImageView;
-import com.sonai.ssiv.test.AbstractPagesActivity;
-import com.sonai.ssiv.test.Page;
-import com.sonai.ssiv.test.R.id;
+class BasicFeaturesActivity : AbstractPagesActivity(
+    R.string.basic_title, R.layout.pages_activity, listOf(
+        Page(R.string.basic_p1_subtitle, R.string.basic_p1_text),
+        Page(R.string.basic_p2_subtitle, R.string.basic_p2_text),
+        Page(R.string.basic_p3_subtitle, R.string.basic_p3_text),
+        Page(R.string.basic_p4_subtitle, R.string.basic_p4_text),
+        Page(R.string.basic_p5_subtitle, R.string.basic_p5_text)
+    )
+) {
 
-import java.util.Arrays;
-
-import static com.sonai.ssiv.test.R.string.*;
-import static com.sonai.ssiv.test.R.layout.*;
-
-public class BasicFeaturesActivity extends AbstractPagesActivity {
-
-    public BasicFeaturesActivity() {
-        super(basic_title, pages_activity, Arrays.asList(
-                new Page(basic_p1_subtitle, basic_p1_text),
-                new Page(basic_p2_subtitle, basic_p2_text),
-                new Page(basic_p3_subtitle, basic_p3_text),
-                new Page(basic_p4_subtitle, basic_p4_text),
-                new Page(basic_p5_subtitle, basic_p5_text)
-        ));
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val view = findViewById<SubsamplingScaleImageView>(R.id.imageView)
+        view.setImage(ImageSource.asset("sanmartino.jpg"))
     }
-
-    @Override
-    protected void onCreate(@Nullable Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        SubsamplingScaleImageView view = findViewById(id.imageView);
-        view.setImage(ImageSource.asset("sanmartino.jpg"));
-    }
-
 }

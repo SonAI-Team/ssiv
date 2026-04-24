@@ -1,82 +1,69 @@
-package com.sonai.ssiv.test.viewpager;
+package com.sonai.ssiv.test.viewpager
 
-import android.os.Bundle;
-import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentManager;
-import androidx.fragment.app.FragmentStatePagerAdapter;
-import androidx.viewpager.widget.ViewPager;
-import android.view.View;
+import android.os.Bundle
+import android.view.View
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
+import androidx.fragment.app.FragmentStatePagerAdapter
+import androidx.viewpager.widget.ViewPager
+import androidx.activity.OnBackPressedCallback
+import com.sonai.ssiv.test.AbstractPagesActivity
+import com.sonai.ssiv.test.Page
+import com.sonai.ssiv.test.R
 
-import com.sonai.ssiv.test.AbstractPagesActivity;
-import com.sonai.ssiv.test.Page;
-import com.sonai.ssiv.test.R;
+class ViewPagerActivity : AbstractPagesActivity(
+    R.string.pager_title, R.layout.view_pager, listOf(
+        Page(R.string.pager_p1_subtitle, R.string.pager_p1_text),
+        Page(R.string.pager_p2_subtitle, R.string.pager_p2_text)
+    )
+) {
 
-import java.util.Arrays;
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val horizontalPager = findViewById<ViewPager>(R.id.horizontal_pager)
+        horizontalPager.adapter = ScreenSlidePagerAdapter(supportFragmentManager)
+        val verticalPager = findViewById<ViewPager>(R.id.vertical_pager)
+        verticalPager.adapter = ScreenSlidePagerAdapter(supportFragmentManager)
 
-import static com.sonai.ssiv.test.R.layout.view_pager;
-import static com.sonai.ssiv.test.R.string.pager_p1_subtitle;
-import static com.sonai.ssiv.test.R.string.pager_p1_text;
-import static com.sonai.ssiv.test.R.string.pager_p2_subtitle;
-import static com.sonai.ssiv.test.R.string.pager_p2_text;
-import static com.sonai.ssiv.test.R.string.pager_title;
-
-public class ViewPagerActivity extends AbstractPagesActivity {
-
-    private static final String[] IMAGES = { "sanmartino.jpg", "swissroad.jpg" };
-
-    public ViewPagerActivity() {
-        super(pager_title, view_pager, Arrays.asList(
-                new Page(pager_p1_subtitle, pager_p1_text),
-                new Page(pager_p2_subtitle, pager_p2_text)
-        ));
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                val viewPager = findViewById<ViewPager>(if (getPage() == 0) R.id.horizontal_pager else R.id.vertical_pager)
+                if (viewPager.currentItem == 0) {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                    isEnabled = true
+                } else {
+                    viewPager.currentItem -= 1
+                }
+            }
+        })
     }
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        ViewPager horizontalPager = findViewById(R.id.horizontal_pager);
-        horizontalPager.setAdapter(new ScreenSlidePagerAdapter(getSupportFragmentManager()));
-        ViewPager verticalPager = findViewById(R.id.vertical_pager);
-        verticalPager.setAdapter(new ScreenSlidePagerAdapter(getSupportFragmentManager()));
-    }
-
-    @Override
-    public void onBackPressed() {
-        ViewPager viewPager = findViewById(getPage() == 0 ? R.id.horizontal_pager : R.id.vertical_pager);
-        if (viewPager.getCurrentItem() == 0) {
-            super.onBackPressed();
-        } else {
-            viewPager.setCurrentItem(viewPager.getCurrentItem() - 1);
-        }
-    }
-
-    @Override
-    protected void onPageChanged(int page) {
+    override fun onPageChanged(page: Int) {
         if (getPage() == 0) {
-            findViewById(R.id.horizontal_pager).setVisibility(View.VISIBLE);
-            findViewById(R.id.vertical_pager).setVisibility(View.GONE);
+            findViewById<View>(R.id.horizontal_pager).visibility = View.VISIBLE
+            findViewById<View>(R.id.vertical_pager).visibility = View.GONE
         } else {
-            findViewById(R.id.horizontal_pager).setVisibility(View.GONE);
-            findViewById(R.id.vertical_pager).setVisibility(View.VISIBLE);
+            findViewById<View>(R.id.horizontal_pager).visibility = View.GONE
+            findViewById<View>(R.id.vertical_pager).visibility = View.VISIBLE
         }
     }
 
-    private static class ScreenSlidePagerAdapter extends FragmentStatePagerAdapter {
-        ScreenSlidePagerAdapter(FragmentManager fm) {
-            super(fm);
+    @Suppress("DEPRECATION")
+    private class ScreenSlidePagerAdapter(fm: FragmentManager) : FragmentStatePagerAdapter(fm, BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT) {
+
+        override fun getItem(position: Int): Fragment {
+            val fragment = ViewPagerFragment()
+            fragment.setAsset(IMAGES[position])
+            return fragment
         }
 
-        @Override
-        public Fragment getItem(int position) {
-            ViewPagerFragment fragment = new ViewPagerFragment();
-            fragment.setAsset(IMAGES[position]);
-            return fragment;
-        }
-
-        @Override
-        public int getCount() {
-            return IMAGES.length;
+        override fun getCount(): Int {
+            return IMAGES.size
         }
     }
 
+    companion object {
+        private val IMAGES = arrayOf("sanmartino.jpg", "swissroad.jpg")
+    }
 }

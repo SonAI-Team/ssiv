@@ -8,7 +8,7 @@ android {
 
     defaultConfig {
         applicationId = "com.sonai.ssiv.test"
-        minSdk = 30
+        minSdk = 34
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
@@ -32,5 +32,7 @@ android {
 
 dependencies {
     implementation(project(":library"))
-    implementation(libs.androidx.legacy.support.v4)
+    implementation(libs.androidx.annotation)
+    implementation(libs.androidx.fragment)
+    implementation(libs.androidx.appcompat)
 }

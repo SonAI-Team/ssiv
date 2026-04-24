@@ -1,97 +1,76 @@
-package com.sonai.ssiv.test;
+package com.sonai.ssiv.test
 
-import android.app.ActionBar;
-import android.os.Bundle;
+import android.os.Bundle
+import android.view.MenuItem
+import android.view.View
+import android.widget.TextView
+import androidx.fragment.app.FragmentActivity
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.fragment.app.FragmentActivity;
-import android.view.MenuItem;
-import android.view.View;
-import android.widget.TextView;
+abstract class AbstractPagesActivity protected constructor(
+    private val title: Int,
+    private val layout: Int,
+    private val notes: List<Page>
+) : FragmentActivity() {
 
-import java.util.List;
+    private var pageNum: Int = 0
 
-public abstract class AbstractPagesActivity extends FragmentActivity {
+    protected open fun onPageChanged(page: Int) {}
 
-    private static final String BUNDLE_PAGE = "page";
-
-    private int page;
-
-    private final int title;
-    private final int layout;
-    private final List<Page> notes;
-
-    protected AbstractPagesActivity(int title, int layout, List<Page> notes) {
-        this.title = title;
-        this.layout = layout;
-        this.notes = notes;
-    }
-
-    @Override
-    protected void onCreate(@Nullable Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(layout);
-        ActionBar actionBar = getActionBar();
-        if (actionBar != null) {
-            actionBar.setTitle(getString(title));
-            actionBar.setDisplayHomeAsUpEnabled(true);
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(layout)
+        actionBar?.apply {
+            title = title
+            setDisplayHomeAsUpEnabled(true)
         }
-        findViewById(R.id.next).setOnClickListener(v -> next());
-        findViewById(R.id.previous).setOnClickListener(v -> previous());
+        findViewById<View>(R.id.next).setOnClickListener { next() }
+        findViewById<View>(R.id.previous).setOnClickListener { previous() }
         if (savedInstanceState != null && savedInstanceState.containsKey(BUNDLE_PAGE)) {
-            page = savedInstanceState.getInt(BUNDLE_PAGE);
+            pageNum = savedInstanceState.getInt(BUNDLE_PAGE)
         }
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        updateNotes();
+    override fun onResume() {
+        super.onResume()
+        updateNotes()
     }
 
-    @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
-        outState.putInt(BUNDLE_PAGE, page);
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(BUNDLE_PAGE, pageNum)
     }
 
-    @Override
-    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
-        finish();
-        return true;
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        finish()
+        return true
     }
 
-    private void next() {
-        page++;
-        updateNotes();
+    private fun next() {
+        pageNum++
+        updateNotes()
     }
 
-    private void previous() {
-        page--;
-        updateNotes();
+    private fun previous() {
+        pageNum--
+        updateNotes()
     }
 
-    private void updateNotes() {
-        if (page > notes.size() - 1) {
-            return;
+    private fun updateNotes() {
+        if (pageNum > notes.size - 1) {
+            return
         }
-        ActionBar actionBar = getActionBar();
-        if (actionBar != null) {
-            actionBar.setSubtitle(notes.get(page).getSubtitle());
-        }
-        ((TextView)findViewById(R.id.note)).setText(notes.get(page).getText());
-        findViewById(R.id.next).setVisibility(page >= notes.size() - 1 ? View.INVISIBLE : View.VISIBLE);
-        findViewById(R.id.previous).setVisibility(page <= 0 ? View.INVISIBLE : View.VISIBLE);
-        onPageChanged(page);
+        actionBar?.subtitle = getString(notes[pageNum].subtitle)
+        findViewById<TextView>(R.id.note).setText(notes[pageNum].text)
+        findViewById<View>(R.id.next).visibility = if (pageNum >= notes.size - 1) View.INVISIBLE else View.VISIBLE
+        findViewById<View>(R.id.previous).visibility = if (pageNum <= 0) View.INVISIBLE else View.VISIBLE
+        onPageChanged(pageNum)
     }
 
-    protected final int getPage() {
-        return page;
+    protected fun getPage(): Int {
+        return pageNum
     }
 
-    protected void onPageChanged(int page) {
-
+    companion object {
+        private const val BUNDLE_PAGE = "page"
     }
-
 }

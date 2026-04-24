@@ -1,63 +1,59 @@
-package com.sonai.ssiv.test.extension.views;
+package com.sonai.ssiv.test.extension.views
 
-import android.content.Context;
-import android.graphics.*;
-import android.util.AttributeSet;
+import android.content.Context
+import android.graphics.*
+import android.util.AttributeSet
+import com.sonai.ssiv.SubsamplingScaleImageView
+import com.sonai.ssiv.test.R
+import androidx.core.graphics.scale
 
-import androidx.annotation.NonNull;
+class PinView @JvmOverloads constructor(
+    context: Context,
+    attr: AttributeSet? = null
+) : SubsamplingScaleImageView(context, attr) {
 
-import com.sonai.ssiv.SubsamplingScaleImageView;
-import com.sonai.ssiv.test.R.drawable;
+    private val paint = Paint()
+    private val vPin = PointF()
+    private var sPin: PointF? = null
+    private var pin: Bitmap? = null
 
-
-public class PinView extends SubsamplingScaleImageView {
-
-    private final Paint paint = new Paint();
-    private final PointF vPin = new PointF();
-    private PointF sPin;
-    private Bitmap pin;
-
-    public PinView(Context context) {
-        this(context, null);
+    init {
+        initialise()
     }
 
-    public PinView(Context context, AttributeSet attr) {
-        super(context, attr);
-        initialise();
+    fun setPin(sPin: PointF) {
+        this.sPin = sPin
+        initialise()
+        invalidate()
     }
 
-    public void setPin(PointF sPin) {
-        this.sPin = sPin;
-        initialise();
-        invalidate();
+    private fun initialise() {
+        val density = resources.displayMetrics.densityDpi
+        val originalPin = BitmapFactory.decodeResource(resources, R.drawable.pushpin_blue)
+        if (originalPin != null) {
+            val w = (density / 420f) * originalPin.width
+            val h = (density / 420f) * originalPin.height
+            pin = originalPin.scale(w.toInt(), h.toInt())
+        }
     }
 
-    private void initialise() {
-        float density = getResources().getDisplayMetrics().densityDpi;
-        pin = BitmapFactory.decodeResource(this.getResources(), drawable.pushpin_blue);
-        float w = (density/420f) * pin.getWidth();
-        float h = (density/420f) * pin.getHeight();
-        pin = Bitmap.createScaledBitmap(pin, (int)w, (int)h, true);
-    }
-
-    @Override
-    protected void onDraw(@NonNull Canvas canvas) {
-        super.onDraw(canvas);
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
 
         // Don't draw pin before image is ready so it doesn't move around during setup.
-        if (!isReady()) {
-            return;
+        if (!isReady) {
+            return
         }
 
-        paint.setAntiAlias(true);
+        paint.isAntiAlias = true
 
-        if (sPin != null && pin != null) {
-            sourceToViewCoord(sPin, vPin);
-            float vX = vPin.x - ((float) pin.getWidth() /2);
-            float vY = vPin.y - pin.getHeight();
-            canvas.drawBitmap(pin, vX, vY, paint);
+        val currentPin = pin
+        val currentSPin = sPin
+        if (currentSPin != null && currentPin != null) {
+            sourceToViewCoord(currentSPin, vPin)
+            val vX = vPin.x - (currentPin.width.toFloat() / 2)
+            val vY = vPin.y - currentPin.height
+            canvas.drawBitmap(currentPin, vX, vY, paint)
         }
-
     }
-
 }

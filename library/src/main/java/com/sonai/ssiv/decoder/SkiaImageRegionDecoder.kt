@@ -47,30 +47,21 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
     override fun init(context: Context, uri: Uri): Point {
         val uriString = uri.toString()
         if (uriString.startsWith(RESOURCE_PREFIX)) {
-            val res = if (context.packageName == uri.authority) {
-                context.resources
-            } else {
-                context.packageManager.getResourcesForApplication(uri.authority!!)
-            }
-
             var id = 0
             val segments = uri.pathSegments
-            val size = segments.size
-            if (size == 2 && segments[0] == "drawable") {
-                id = res.getIdentifier(segments[1], "drawable", uri.authority)
-            } else if (size == 1 && segments[0].isDigitsOnly()) {
+            if (segments.size == 1 && segments[0].isDigitsOnly()) {
                 try {
                     id = segments[0].toInt()
-                } catch (ignored: NumberFormatException) {
+                } catch (_: NumberFormatException) {
                 }
             }
 
-            decoder = BitmapRegionDecoder.newInstance(context.resources.openRawResource(id), false)
+            decoder = BitmapRegionDecoder.newInstance(context.resources.openRawResource(id))
         } else if (uriString.startsWith(ASSET_PREFIX)) {
             val assetName = uriString.substring(ASSET_PREFIX.length)
-            decoder = BitmapRegionDecoder.newInstance(context.assets.open(assetName, android.content.res.AssetManager.ACCESS_RANDOM), false)
+            decoder = BitmapRegionDecoder.newInstance(context.assets.open(assetName, android.content.res.AssetManager.ACCESS_RANDOM))
         } else if (uriString.startsWith(FILE_PREFIX)) {
-            decoder = BitmapRegionDecoder.newInstance(uriString.substring(FILE_PREFIX.length), false)
+            decoder = BitmapRegionDecoder.newInstance(uriString.substring(FILE_PREFIX.length))
         } else {
             var inputStream: InputStream? = null
             try {
@@ -78,12 +69,12 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
                 if (inputStream == null) {
                     throw Exception("Content resolver returned null stream. Unable to initialise with uri.")
                 }
-                decoder = BitmapRegionDecoder.newInstance(inputStream, false)
+                decoder = BitmapRegionDecoder.newInstance(inputStream)
             } finally {
                 inputStream?.let {
                     try {
                         it.close()
-                    } catch (e: Exception) { // Ignore
+                    } catch (_: Exception) { // Ignore
                     }
                 }
             }

@@ -5,7 +5,6 @@ import android.content.ContentResolver
 import android.content.Context
 import android.content.Context.ACTIVITY_SERVICE
 import android.content.res.AssetManager
-import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.BitmapRegionDecoder
@@ -23,6 +22,7 @@ import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReadWriteLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlinx.coroutines.*
 
 /**
  * <p>
@@ -73,27 +73,25 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         return this.imageDimensions
     }
 
+    @OptIn(DelicateCoroutinesApi::class)
     private fun lazyInit() {
         if (lazyInited.compareAndSet(false, true) && fileLength < Long.MAX_VALUE) {
             debug("Starting lazy init of additional decoders")
-            val thread = object : Thread() {
-                override fun run() {
-                    while (decoderPool != null && allowAdditionalDecoder(decoderPool?.size() ?: 0, fileLength)) {
-                        try {
-                            if (decoderPool != null) {
-                                val start = System.currentTimeMillis()
-                                debug("Starting decoder")
-                                initialiseDecoder()
-                                val end = System.currentTimeMillis()
-                                debug("Started decoder, took ${end - start}ms")
-                            }
-                        } catch (e: Exception) {
-                            debug("Failed to start decoder: ${e.message}")
+            GlobalScope.launch(Dispatchers.Default) {
+                while (decoderPool != null && allowAdditionalDecoder(decoderPool?.size() ?: 0, fileLength)) {
+                    try {
+                        if (decoderPool != null) {
+                            val start = System.currentTimeMillis()
+                            debug("Starting decoder")
+                            initialiseDecoder()
+                            val end = System.currentTimeMillis()
+                            debug("Started decoder, took ${end - start}ms")
                         }
+                    } catch (e: Exception) {
+                        debug("Failed to start decoder: ${e.message}")
                     }
                 }
             }
-            thread.start()
         }
     }
 
@@ -104,51 +102,38 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         var fileLength = Long.MAX_VALUE
         val context = this.context!!
         if (uriString.startsWith(RESOURCE_PREFIX)) {
-            val res: Resources
-            val packageName = uri!!.authority
-            if (context.packageName == packageName) {
-                res = context.resources
-            } else {
-                val pm = context.packageManager
-                res = pm.getResourcesForApplication(packageName!!)
-            }
-
             var id = 0
             val segments = uri!!.pathSegments
-            val size = segments.size
-            if (size == 2 && segments[0] == "drawable") {
-                val resName = segments[1]
-                id = res.getIdentifier(resName, "drawable", packageName)
-            } else if (size == 1 && segments[0].isDigitsOnly()) {
+            if (segments.size == 1 && segments[0].isDigitsOnly()) {
                 try {
                     id = segments[0].toInt()
-                } catch (ignored: NumberFormatException) {
+                } catch (_: NumberFormatException) {
                 }
             }
             try {
                 val descriptor = context.resources.openRawResourceFd(id)
                 fileLength = descriptor.length
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 // Pooling disabled
             }
-            decoder = BitmapRegionDecoder.newInstance(context.resources.openRawResource(id), false)
+            decoder = BitmapRegionDecoder.newInstance(context.resources.openRawResource(id))
         } else if (uriString.startsWith(ASSET_PREFIX)) {
             val assetName = uriString.substring(ASSET_PREFIX.length)
             try {
                 val descriptor = context.assets.openFd(assetName)
                 fileLength = descriptor.length
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 // Pooling disabled
             }
-            decoder = BitmapRegionDecoder.newInstance(context.assets.open(assetName, AssetManager.ACCESS_RANDOM), false)
+            decoder = BitmapRegionDecoder.newInstance(context.assets.open(assetName, AssetManager.ACCESS_RANDOM))
         } else if (uriString.startsWith(FILE_PREFIX)) {
-            decoder = BitmapRegionDecoder.newInstance(uriString.substring(FILE_PREFIX.length), false)
+            decoder = BitmapRegionDecoder.newInstance(uriString.substring(FILE_PREFIX.length))
             try {
                 val file = File(uriString.substring(FILE_PREFIX.length))
                 if (file.exists()) {
                     fileLength = file.length()
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 // Pooling disabled
             }
         } else {
@@ -159,20 +144,21 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
                 if (inputStream == null) {
                     throw Exception("Content resolver returned null stream. Unable to initialise with uri.")
                 }
-                decoder = BitmapRegionDecoder.newInstance(inputStream, false)
+                decoder = BitmapRegionDecoder.newInstance(inputStream)
                 try {
                     val descriptor = contentResolver.openAssetFileDescriptor(uri!!, "r")
                     if (descriptor != null) {
                         fileLength = descriptor.length
+                        descriptor.close()
                     }
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     // Stick with MAX_LENGTH
                 }
             } finally {
                 inputStream?.let {
                     try {
                         it.close()
-                    } catch (e: Exception) { // Ignore
+                    } catch (_: Exception) { // Ignore
                     }
                 }
             }

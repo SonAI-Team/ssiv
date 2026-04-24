@@ -230,6 +230,12 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     private val srcArray = FloatArray(8)
     private val dstArray = FloatArray(8)
 
+    // Objects for use in onDraw to avoid allocation
+    private val vCenterStartDebug = PointF()
+    private val vCenterEndRequestedDebug = PointF()
+    private val vCenterEndDebug = PointF()
+    private val centerDebug = PointF()
+
     //The logical density of the display
     private val density: Float = resources.displayMetrics.density
 
@@ -1156,17 +1162,20 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         if (debug) {
             canvas.drawText("Scale: ${String.format(Locale.ENGLISH, "%.2f", scale)} (${String.format(Locale.ENGLISH, "%.2f", minScale())} - ${String.format(Locale.ENGLISH, "%.2f", maxScale)})", px(5).toFloat(), px(15).toFloat(), debugTextPaint!!)
             canvas.drawText("Translate: ${String.format(Locale.ENGLISH, "%.2f", vTranslate!!.x)}:${String.format(Locale.ENGLISH, "%.2f", vTranslate!!.y)}", px(5).toFloat(), px(30).toFloat(), debugTextPaint!!)
-            val center = center
-            canvas.drawText("Source center: ${String.format(Locale.ENGLISH, "%.2f", center!!.x)}:${String.format(Locale.ENGLISH, "%.2f", center.y)}", px(5).toFloat(), px(45).toFloat(), debugTextPaint!!)
+            val currentCenter = center
+            if (currentCenter != null) {
+                centerDebug.set(currentCenter)
+                canvas.drawText("Source center: ${String.format(Locale.ENGLISH, "%.2f", centerDebug.x)}:${String.format(Locale.ENGLISH, "%.2f", centerDebug.y)}", px(5).toFloat(), px(45).toFloat(), debugTextPaint!!)
+            }
             anim?.let {
-                val vCenterStart = sourceToViewCoord(it.sCenterStart!!)
-                val vCenterEndRequested = sourceToViewCoord(it.sCenterEndRequested!!)
-                val vCenterEnd = sourceToViewCoord(it.sCenterEnd!!)
-                canvas.drawCircle(vCenterStart!!.x, vCenterStart.y, px(10).toFloat(), debugLinePaint!!)
+                sourceToViewCoord(it.sCenterStart!!, vCenterStartDebug)
+                sourceToViewCoord(it.sCenterEndRequested!!, vCenterEndRequestedDebug)
+                sourceToViewCoord(it.sCenterEnd!!, vCenterEndDebug)
+                canvas.drawCircle(vCenterStartDebug.x, vCenterStartDebug.y, px(10).toFloat(), debugLinePaint!!)
                 debugLinePaint!!.color = Color.RED
-                canvas.drawCircle(vCenterEndRequested!!.x, vCenterEndRequested.y, px(20).toFloat(), debugLinePaint!!)
+                canvas.drawCircle(vCenterEndRequestedDebug.x, vCenterEndRequestedDebug.y, px(20).toFloat(), debugLinePaint!!)
                 debugLinePaint!!.color = Color.BLUE
-                canvas.drawCircle(vCenterEnd!!.x, vCenterEnd.y, px(25).toFloat(), debugLinePaint!!)
+                canvas.drawCircle(vCenterEndDebug.x, vCenterEndDebug.y, px(25).toFloat(), debugLinePaint!!)
                 debugLinePaint!!.color = Color.CYAN
                 canvas.drawCircle((width / 2).toFloat(), (height / 2).toFloat(), px(30).toFloat(), debugLinePaint!!)
             }
@@ -2485,7 +2494,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
      * Returns true if zoom gesture detection is enabled.
      * @return true if zoom gesture detection is enabled.
      */
-    fun isZoomEnabled(): Boolean {
+    fun zoomEnabled(): Boolean {
         return zoomEnabled
     }
 
@@ -2501,7 +2510,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
      * Returns true if double tap & swipe to zoom is enabled.
      * @return true if double tap & swipe to zoom is enabled.
      */
-    fun isQuickScaleEnabled(): Boolean {
+    fun quickScaleEnabled(): Boolean {
         return quickScaleEnabled
     }
 
@@ -2517,7 +2526,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
      * Returns true if pan gesture detection is enabled.
      * @return true if pan gesture detection is enabled.
      */
-    fun isPanEnabled(): Boolean {
+    fun panEnabled(): Boolean {
         return panEnabled
     }
 

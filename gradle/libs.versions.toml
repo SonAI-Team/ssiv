@@ -3,7 +3,7 @@ agp = "9.2.0"
 appcompat = "1.7.1"
 annotation = "1.10.0"
 exifinterface = "1.4.2"
-legacySupportV4 = "1.0.0"
+fragment = "1.8.9"
 kotlinx-coroutines = "1.10.2"
 detekt = "1.23.8"
 
@@ -11,7 +11,7 @@ detekt = "1.23.8"
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 androidx-annotation = { group = "androidx.annotation", name = "annotation", version.ref = "annotation" }
 androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
-androidx-legacy-support-v4 = { group = "androidx.legacy", name = "legacy-support-v4", version.ref = "legacySupportV4" }
+androidx-fragment = { group = "androidx.fragment", name = "fragment", version.ref = "fragment" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinx-coroutines" }
 
 [plugins]

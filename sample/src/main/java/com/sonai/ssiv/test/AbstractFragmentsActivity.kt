@@ -1,84 +1,65 @@
-package com.sonai.ssiv.test;
+package com.sonai.ssiv.test
 
-import android.app.ActionBar;
-import android.os.Bundle;
+import android.os.Bundle
+import android.view.MenuItem
+import androidx.fragment.app.FragmentActivity
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.fragment.app.FragmentActivity;
-import android.view.MenuItem;
+abstract class AbstractFragmentsActivity protected constructor(
+    private val title: Int,
+    private val layout: Int,
+    private val notes: List<Page>
+) : FragmentActivity() {
 
-import java.util.List;
+    private var page: Int = 0
 
-public abstract class AbstractFragmentsActivity extends FragmentActivity {
+    protected abstract fun onPageChanged(page: Int)
 
-    private static final String BUNDLE_PAGE = "page";
-
-    private int page;
-
-    private final int title;
-    private final int layout;
-    private final List<Page> notes;
-
-    protected abstract void onPageChanged(int page);
-
-    protected AbstractFragmentsActivity(int title, int layout, List<Page> notes) {
-        this.title = title;
-        this.layout = layout;
-        this.notes = notes;
-    }
-
-    @Override
-    protected void onCreate(@Nullable Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(layout);
-        ActionBar actionBar = getActionBar();
-        if (actionBar != null) {
-            actionBar.setTitle(getString(title));
-            actionBar.setDisplayHomeAsUpEnabled(true);
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(layout)
+        actionBar?.apply {
+            title = title
+            setDisplayHomeAsUpEnabled(true)
         }
         if (savedInstanceState != null && savedInstanceState.containsKey(BUNDLE_PAGE)) {
-            page = savedInstanceState.getInt(BUNDLE_PAGE);
+            page = savedInstanceState.getInt(BUNDLE_PAGE)
         }
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        updateNotes();
+    override fun onResume() {
+        super.onResume()
+        updateNotes()
     }
 
-    @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
-        outState.putInt(BUNDLE_PAGE, page);
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(BUNDLE_PAGE, page)
     }
 
-    @Override
-    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
-        finish();
-        return true;
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        finish()
+        return true
     }
 
-    public void next() {
-        page++;
-        updateNotes();
+    fun next() {
+        page++
+        updateNotes()
     }
 
-    public void previous() {
-        page--;
-        updateNotes();
+    fun previous() {
+        page--
+        updateNotes()
     }
 
-    private void updateNotes() {
-        if (page > notes.size() - 1) {
-            return;
+    private fun updateNotes() {
+        if (page > notes.size - 1) {
+            return
         }
-        ActionBar actionBar = getActionBar();
-        if (actionBar != null) {
-            actionBar.setSubtitle(notes.get(page).getSubtitle());
-        }
-        onPageChanged(page);
+        actionBar?.subtitle = getString(notes[page].subtitle)
+        onPageChanged(page)
     }
 
+    companion object {
+        private const val BUNDLE_PAGE = "page"
+    }
 }

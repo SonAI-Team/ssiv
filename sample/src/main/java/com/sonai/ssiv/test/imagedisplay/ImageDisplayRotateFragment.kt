@@ -1,32 +1,29 @@
-package com.sonai.ssiv.test.imagedisplay;
+package com.sonai.ssiv.test.imagedisplay
 
-import android.os.Bundle;
-import androidx.annotation.NonNull;
-import androidx.fragment.app.Fragment;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.view.ViewGroup;
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.fragment.app.Fragment
+import com.sonai.ssiv.ImageSource
+import com.sonai.ssiv.SubsamplingScaleImageView
+import com.sonai.ssiv.test.R
 
-import com.sonai.ssiv.ImageSource;
-import com.sonai.ssiv.SubsamplingScaleImageView;
-import com.sonai.ssiv.test.R.id;
-import com.sonai.ssiv.test.R.layout;
+class ImageDisplayRotateFragment : Fragment() {
 
-public class ImageDisplayRotateFragment extends Fragment {
-
-    @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        View rootView = inflater.inflate(layout.imagedisplay_rotate_fragment, container, false);
-        final SubsamplingScaleImageView imageView = rootView.findViewById(id.imageView);
-        imageView.setImage(ImageSource.asset("swissroad.jpg"));
-        imageView.setOrientation(90);
-        final ImageDisplayActivity activity = (ImageDisplayActivity)getActivity();
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+        val rootView = inflater.inflate(R.layout.imagedisplay_rotate_fragment, container, false)
+        val imageView = rootView.findViewById<SubsamplingScaleImageView>(R.id.imageView)
+        imageView.setImage(ImageSource.asset("swissroad.jpg"))
+        imageView.setOrientation(90)
+        val activity = activity as? ImageDisplayActivity
         if (activity != null) {
-            rootView.findViewById(id.previous).setOnClickListener(v -> activity.previous());
-            rootView.findViewById(id.next).setOnClickListener(v -> activity.next());
+            rootView.findViewById<View>(R.id.previous).setOnClickListener { activity.previous() }
+            rootView.findViewById<View>(R.id.next).setOnClickListener { activity.next() }
         }
-        rootView.findViewById(id.rotate).setOnClickListener(v -> imageView.setOrientation((imageView.getOrientation() + 90) % 360));
-        return rootView;
+        rootView.findViewById<View>(R.id.rotate).setOnClickListener {
+            imageView.setOrientation((imageView.getOrientation() + 90) % 360)
+        }
+        return rootView
     }
-
 }

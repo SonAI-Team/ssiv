@@ -1,145 +1,128 @@
-package com.sonai.ssiv.test.extension.views;
+package com.sonai.ssiv.test.extension.views
 
-import android.annotation.SuppressLint;
-import android.content.Context;
-import android.graphics.*;
-import android.graphics.Paint.Cap;
-import android.graphics.Paint.Style;
-import androidx.annotation.NonNull;
-import android.util.AttributeSet;
-import android.view.MotionEvent;
-import android.view.View;
-import android.view.View.OnTouchListener;
-import com.sonai.ssiv.SubsamplingScaleImageView;
+import android.annotation.SuppressLint
+import android.content.Context
+import android.graphics.*
+import android.util.AttributeSet
+import android.view.MotionEvent
+import android.view.View
+import com.sonai.ssiv.SubsamplingScaleImageView
+import kotlin.math.abs
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+class FreehandView @JvmOverloads constructor(
+    context: Context,
+    attr: AttributeSet? = null
+) : SubsamplingScaleImageView(context, attr), View.OnTouchListener {
 
-public class FreehandView extends SubsamplingScaleImageView implements OnTouchListener {
+    private val paint = Paint()
+    private val vPath = Path()
+    private var vPrev = PointF()
+    private var vPoint = PointF()
+    private var vPrevious: PointF? = null
+    private var vStart: PointF? = null
+    private var drawing = false
+    private var strokeWidth: Int = 0
+    private var sPoints: MutableList<PointF>? = null
 
-    private final Paint paint = new Paint();
-    private final Path vPath = new Path();
-    private final PointF vPoint = new PointF();
-    private PointF vPrev = new PointF();
-    private PointF vPrevious;
-    private PointF vStart;
-    private boolean drawing = false;
-
-    private int strokeWidth;
-
-    private List<PointF> sPoints;
-
-    public FreehandView(Context context, AttributeSet attr) {
-        super(context, attr);
-        initialise();
+    init {
+        setOnTouchListener(this)
+        val density = resources.displayMetrics.densityDpi
+        strokeWidth = (density / 60f).toInt()
     }
 
-    public FreehandView(Context context) {
-        this(context, null);
-    }
-
-    private void initialise() {
-        setOnTouchListener(this);
-        float density = getResources().getDisplayMetrics().densityDpi;
-        strokeWidth = (int)(density/60f);
-    }
-
-    @Override
-    public boolean onTouch(View view, MotionEvent motionEvent) {
-        return false;
+    override fun onTouch(view: View, motionEvent: MotionEvent): Boolean {
+        return false
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    @Override
-    public boolean onTouchEvent(@NonNull MotionEvent event) {
+    override fun onTouchEvent(event: MotionEvent): Boolean {
         if (sPoints != null && !drawing) {
-            return super.onTouchEvent(event);
+            return super.onTouchEvent(event)
         }
-        boolean consumed = false;
-        int touchCount = event.getPointerCount();
-        switch (event.getActionMasked()) {
-            case MotionEvent.ACTION_DOWN:
-                if (event.getActionIndex() == 0) {
-                    vStart = new PointF(event.getX(), event.getY());
-                    vPrevious = new PointF(event.getX(), event.getY());
+        var consumed = false
+        val touchCount = event.pointerCount
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                if (event.actionIndex == 0) {
+                    vStart = PointF(event.x, event.y)
+                    vPrevious = PointF(event.x, event.y)
                 } else {
-                    vStart = null;
-                    vPrevious = null;
+                    vStart = null
+                    vPrevious = null
                 }
-                break;
-            case MotionEvent.ACTION_MOVE:
-                PointF sCurrentF = viewToSourceCoord(event.getX(), event.getY());
-                assert sCurrentF != null;
-                PointF sCurrent = new PointF(sCurrentF.x, sCurrentF.y);
-                PointF sStart = vStart == null ? null : new PointF(Objects.requireNonNull(viewToSourceCoord(vStart)).x, Objects.requireNonNull(viewToSourceCoord(vStart)).y);
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val sCurrentF = viewToSourceCoord(event.x, event.y)
+                val sCurrent = sCurrentF?.let { PointF(it.x, it.y) }
+                val sStart = vStart?.let {
+                    val converted = viewToSourceCoord(it.x, it.y)
+                    converted?.let { p -> PointF(p.x, p.y) }
+                }
 
-                if (touchCount == 1 && vStart != null) {
-                    float vDX = Math.abs(event.getX() - vPrevious.x);
-                    float vDY = Math.abs(event.getY() - vPrevious.y);
+                if (touchCount == 1 && vStart != null && vPrevious != null && sCurrent != null) {
+                    val vDX = abs(event.x - vPrevious!!.x)
+                    val vDY = abs(event.y - vPrevious!!.y)
                     if (vDX >= strokeWidth * 5 || vDY >= strokeWidth * 5) {
                         if (sPoints == null) {
-                            sPoints = new ArrayList<>();
-                            sPoints.add(sStart);
+                            sPoints = ArrayList()
+                            sStart?.let { sPoints?.add(it) }
                         }
-                        sPoints.add(sCurrent);
-                        vPrevious.x = event.getX();
-                        vPrevious.y = event.getY();
-                        drawing = true;
+                        sPoints?.add(sCurrent)
+                        vPrevious?.x = event.x
+                        vPrevious?.y = event.y
+                        drawing = true
                     }
-                    consumed = true;
-                    invalidate();
+                    consumed = true
+                    invalidate()
                 } else if (touchCount == 1) {
                     // Consume all one touch drags to prevent odd panning effects handled by the superclass.
-                    consumed = true;
+                    consumed = true
                 }
-                break;
-            case MotionEvent.ACTION_UP:
-            case MotionEvent.ACTION_POINTER_UP:
-                invalidate();
-                drawing = false;
-                vPrevious = null;
-                vStart = null;
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+                invalidate()
+                drawing = false
+                vPrevious = null
+                vStart = null
+            }
         }
         // Use parent to handle pinch and two-finger pan.
-        return consumed || super.onTouchEvent(event);
+        return consumed || super.onTouchEvent(event)
     }
 
-    @Override
-    protected void onDraw(@NonNull Canvas canvas) {
-        super.onDraw(canvas);
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
 
         // Don't draw anything before image is ready.
-        if (!isReady()) {
-            return;
+        if (!isReady) {
+            return
         }
 
-        paint.setAntiAlias(true);
+        paint.isAntiAlias = true
 
-        if (sPoints != null && sPoints.size() >= 2) {
-            vPath.reset();
-            sourceToViewCoord(sPoints.get(0).x, sPoints.get(0).y, vPrev);
-            vPath.moveTo(vPrev.x, vPrev.y);
-            for (int i = 1; i < sPoints.size(); i++) {
-                sourceToViewCoord(sPoints.get(i).x, sPoints.get(i).y, vPoint);
-                vPath.quadTo(vPrev.x, vPrev.y, (vPoint.x + vPrev.x) / 2, (vPoint.y + vPrev.y) / 2);
-                vPrev = vPoint;
+        val points = sPoints
+        if (points != null && points.size >= 2) {
+            vPath.reset()
+            sourceToViewCoord(points[0].x, points[0].y, vPrev)
+            vPath.moveTo(vPrev.x, vPrev.y)
+            for (i in 1 until points.size) {
+                sourceToViewCoord(points[i].x, points[i].y, vPoint)
+                vPath.quadTo(vPrev.x, vPrev.y, (vPoint.x + vPrev.x) / 2, (vPoint.y + vPrev.y) / 2)
+                vPrev.set(vPoint)
             }
-            paint.setStyle(Style.STROKE);
-            paint.setStrokeCap(Cap.ROUND);
-            paint.setStrokeWidth(strokeWidth * 2);
-            paint.setColor(Color.BLACK);
-            canvas.drawPath(vPath, paint);
-            paint.setStrokeWidth(strokeWidth);
-            paint.setColor(Color.argb(255, 51, 181, 229));
-            canvas.drawPath(vPath, paint);
+            paint.style = Paint.Style.STROKE
+            paint.strokeCap = Paint.Cap.ROUND
+            paint.strokeWidth = (strokeWidth * 2).toFloat()
+            paint.color = Color.BLACK
+            canvas.drawPath(vPath, paint)
+            paint.strokeWidth = strokeWidth.toFloat()
+            paint.color = Color.argb(255, 51, 181, 229)
+            canvas.drawPath(vPath, paint)
         }
-
     }
 
-    public void reset() {
-        this.sPoints = null;
-        invalidate();
+    fun reset() {
+        this.sPoints = null
+        invalidate()
     }
-
 }

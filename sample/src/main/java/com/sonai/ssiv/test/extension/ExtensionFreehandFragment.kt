@@ -1,30 +1,25 @@
-package com.sonai.ssiv.test.extension;
+package com.sonai.ssiv.test.extension
 
-import android.os.Bundle;
-import androidx.annotation.NonNull;
-import androidx.fragment.app.Fragment;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.view.ViewGroup;
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.fragment.app.Fragment
+import com.sonai.ssiv.ImageSource
+import com.sonai.ssiv.test.R
+import com.sonai.ssiv.test.extension.views.FreehandView
 
-import com.sonai.ssiv.ImageSource;
-import com.sonai.ssiv.test.R.id;
-import com.sonai.ssiv.test.R.layout;
-import com.sonai.ssiv.test.extension.views.FreehandView;
+class ExtensionFreehandFragment : Fragment() {
 
-public class ExtensionFreehandFragment extends Fragment {
-
-    @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        View rootView = inflater.inflate(layout.extension_freehand_fragment, container, false);
-        final ExtensionActivity activity = (ExtensionActivity)getActivity();
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+        val rootView = inflater.inflate(R.layout.extension_freehand_fragment, container, false)
+        val activity = activity as? ExtensionActivity
         if (activity != null) {
-            rootView.findViewById(id.previous).setOnClickListener(v -> activity.previous());
+            rootView.findViewById<View>(R.id.previous).setOnClickListener { activity.previous() }
         }
-        final FreehandView imageView = rootView.findViewById(id.imageView);
-        imageView.setImage(ImageSource.asset("sanmartino.jpg"));
-        rootView.findViewById(id.reset).setOnClickListener(v -> imageView.reset());
-        return rootView;
+        val imageView = rootView.findViewById<FreehandView>(R.id.imageView)
+        imageView.setImage(ImageSource.asset("sanmartino.jpg"))
+        rootView.findViewById<View>(R.id.reset).setOnClickListener { imageView.reset() }
+        return rootView
     }
-
 }

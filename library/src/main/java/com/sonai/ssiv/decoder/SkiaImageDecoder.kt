@@ -2,7 +2,6 @@ package com.sonai.ssiv.decoder
 
 import android.content.ContentResolver
 import android.content.Context
-import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -37,25 +36,12 @@ class SkiaSSIVImageDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null
         var bitmap: Bitmap?
         options.inPreferredConfig = bitmapConfig
         if (uriString.startsWith(RESOURCE_PREFIX)) {
-            val res: Resources
-            val packageName = uri.authority
-            if (context.packageName == packageName) {
-                res = context.resources
-            } else {
-                val pm = context.packageManager
-                res = pm.getResourcesForApplication(packageName!!)
-            }
-
             var id = 0
             val segments = uri.pathSegments
-            val size = segments.size
-            if (size == 2 && segments[0] == "drawable") {
-                val resName = segments[1]
-                id = res.getIdentifier(resName, "drawable", packageName)
-            } else if (size == 1 && segments[0].isDigitsOnly()) {
+            if (segments.size == 1 && segments[0].isDigitsOnly()) {
                 try {
                     id = segments[0].toInt()
-                } catch (ignored: NumberFormatException) {
+                } catch (_: NumberFormatException) {
                 }
             }
 
@@ -75,7 +61,7 @@ class SkiaSSIVImageDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null
                 inputStream?.let {
                     try {
                         it.close()
-                    } catch (e: Exception) { /* Ignore */
+                    } catch (_: Exception) { /* Ignore */
                     }
                 }
             }

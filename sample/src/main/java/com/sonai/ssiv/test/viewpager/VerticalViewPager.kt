@@ -1,69 +1,54 @@
-package com.sonai.ssiv.test.viewpager;
+package com.sonai.ssiv.test.viewpager
 
-import android.annotation.SuppressLint;
-import android.content.Context;
-import androidx.annotation.NonNull;
-import androidx.viewpager.widget.ViewPager;
-import android.util.AttributeSet;
-import android.view.MotionEvent;
-import android.view.View;
+import android.annotation.SuppressLint
+import android.content.Context
+import android.util.AttributeSet
+import android.view.MotionEvent
+import android.view.View
+import androidx.viewpager.widget.ViewPager
 
-// From http://stackoverflow.com/a/22797619/2719186
+class VerticalViewPager @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null
+) : ViewPager(context, attrs) {
 
-public class VerticalViewPager extends ViewPager {
-
-    public VerticalViewPager(Context context) {
-        super(context);
-        init();
+    init {
+        setPageTransformer(true, VerticalPageTransformer())
+        overScrollMode = OVER_SCROLL_NEVER
     }
 
-    public VerticalViewPager(Context context, AttributeSet attrs) {
-        super(context, attrs);
-        init();
-    }
-
-    private void init() {
-        setPageTransformer(true, new VerticalPageTransformer());
-        setOverScrollMode(OVER_SCROLL_NEVER);
-    }
-
-    private static class VerticalPageTransformer implements ViewPager.PageTransformer {
-
-        @Override
-        public void transformPage(@NonNull View view, float position) {
-            if (position < -1) {
-                view.setAlpha(0);
-            } else if (position <= 1) {
-                view.setAlpha(1);
-                view.setTranslationX(view.getWidth() * -position);
-                float yPosition = position * view.getHeight();
-                view.setTranslationY(yPosition);
-            } else {
-                view.setAlpha(0);
+    private class VerticalPageTransformer : PageTransformer {
+        override fun transformPage(view: View, position: Float) {
+            when {
+                position < -1 -> view.alpha = 0f
+                position <= 1 -> {
+                    view.alpha = 1f
+                    view.translationX = view.width * -position
+                    val yPosition = position * view.height
+                    view.translationY = yPosition
+                }
+                else -> view.alpha = 0f
             }
         }
     }
 
-    private MotionEvent swapXY(MotionEvent ev) {
-        float width = getWidth();
-        float height = getHeight();
-        float newX = (ev.getY() / height) * width;
-        float newY = (ev.getX() / width) * height;
-        ev.setLocation(newX, newY);
-        return ev;
+    private fun swapXY(ev: MotionEvent): MotionEvent {
+        val width = width.toFloat()
+        val height = height.toFloat()
+        val newX = (ev.y / height) * width
+        val newY = (ev.x / width) * height
+        ev.setLocation(newX, newY)
+        return ev
     }
 
-    @Override
-    public boolean onInterceptTouchEvent(MotionEvent ev){
-        boolean intercepted = super.onInterceptTouchEvent(swapXY(ev));
-        swapXY(ev);
-        return intercepted;
+    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        val intercepted = super.onInterceptTouchEvent(swapXY(ev))
+        swapXY(ev)
+        return intercepted
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    @Override
-    public boolean onTouchEvent(MotionEvent ev) {
-        return super.onTouchEvent(swapXY(ev));
+    override fun onTouchEvent(ev: MotionEvent): Boolean {
+        return super.onTouchEvent(swapXY(ev))
     }
-
 }

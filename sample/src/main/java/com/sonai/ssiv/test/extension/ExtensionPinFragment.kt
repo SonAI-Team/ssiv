@@ -1,31 +1,26 @@
-package com.sonai.ssiv.test.extension;
+package com.sonai.ssiv.test.extension
 
-import android.graphics.PointF;
-import android.os.Bundle;
-import androidx.annotation.NonNull;
-import androidx.fragment.app.Fragment;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.view.ViewGroup;
+import android.graphics.PointF
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.fragment.app.Fragment
+import com.sonai.ssiv.ImageSource
+import com.sonai.ssiv.test.R
+import com.sonai.ssiv.test.extension.views.PinView
 
-import com.sonai.ssiv.ImageSource;
-import com.sonai.ssiv.test.R.id;
-import com.sonai.ssiv.test.R.layout;
-import com.sonai.ssiv.test.extension.views.PinView;
+class ExtensionPinFragment : Fragment() {
 
-public class ExtensionPinFragment extends Fragment {
-
-    @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        View rootView = inflater.inflate(layout.extension_pin_fragment, container, false);
-        final ExtensionActivity activity = (ExtensionActivity)getActivity();
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+        val rootView = inflater.inflate(R.layout.extension_pin_fragment, container, false)
+        val activity = activity as? ExtensionActivity
         if (activity != null) {
-            rootView.findViewById(id.next).setOnClickListener(v -> activity.next());
+            rootView.findViewById<View>(R.id.next).setOnClickListener { activity.next() }
         }
-        PinView imageView = rootView.findViewById(id.imageView);
-        imageView.setImage(ImageSource.asset("sanmartino.jpg"));
-        imageView.setPin(new PointF(1602f, 405f));
-        return rootView;
+        val imageView = rootView.findViewById<PinView>(R.id.imageView)
+        imageView.setImage(ImageSource.asset("sanmartino.jpg"))
+        imageView.setPin(PointF(1602f, 405f))
+        return rootView
     }
-
 }

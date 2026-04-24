@@ -50,7 +50,7 @@ class ImageSource {
             if (!uriFile.exists()) {
                 try {
                     mutableUri = URLDecoder.decode(uriString, "UTF-8").toUri()
-                } catch (e: UnsupportedEncodingException) {
+                } catch (_: UnsupportedEncodingException) {
                     // Fallback to encoded URI. This exception is not expected.
                 }
             }
@@ -93,17 +93,20 @@ class ImageSource {
         }
 
         @JvmStatic
+        @Suppress("unused")
         fun uri(uri: Uri): ImageSource = ImageSource(uri)
 
         @JvmStatic
         fun bitmap(bitmap: Bitmap): ImageSource = ImageSource(bitmap, false)
 
         @JvmStatic
+        @Suppress("unused")
         fun cachedBitmap(bitmap: Bitmap): ImageSource = ImageSource(bitmap, true)
     }
 
     fun tilingEnabled(): ImageSource = tiling(true)
 
+    @Suppress("unused")
     fun tilingDisabled(): ImageSource = tiling(false)
 
     fun tiling(tile: Boolean): ImageSource {

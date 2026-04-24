@@ -1,36 +1,29 @@
-package com.sonai.ssiv.test.eventhandling;
+package com.sonai.ssiv.test.eventhandling
 
-import android.os.Bundle;
-import android.widget.Toast;
+import android.os.Bundle
+import android.widget.Toast
+import com.sonai.ssiv.ImageSource
+import com.sonai.ssiv.SubsamplingScaleImageView
+import com.sonai.ssiv.test.AbstractPagesActivity
+import com.sonai.ssiv.test.Page
+import com.sonai.ssiv.test.R
 
-import com.sonai.ssiv.ImageSource;
-import com.sonai.ssiv.SubsamplingScaleImageView;
-import com.sonai.ssiv.test.AbstractPagesActivity;
-import com.sonai.ssiv.test.Page;
-import com.sonai.ssiv.test.R.id;
+class EventHandlingActivity : AbstractPagesActivity(
+    R.string.event_title, R.layout.pages_activity, listOf(
+        Page(R.string.event_p1_subtitle, R.string.event_p1_text),
+        Page(R.string.event_p2_subtitle, R.string.event_p2_text),
+        Page(R.string.event_p3_subtitle, R.string.event_p3_text)
+    )
+) {
 
-import java.util.Arrays;
-
-import static com.sonai.ssiv.test.R.layout.*;
-import static com.sonai.ssiv.test.R.string.*;
-
-public class EventHandlingActivity extends AbstractPagesActivity {
-
-    public EventHandlingActivity() {
-        super(event_title, pages_activity, Arrays.asList(
-                new Page(event_p1_subtitle, event_p1_text),
-                new Page(event_p2_subtitle, event_p2_text),
-                new Page(event_p3_subtitle, event_p3_text)
-        ));
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val imageView = findViewById<SubsamplingScaleImageView>(R.id.imageView)
+        imageView.setImage(ImageSource.asset("sanmartino.jpg"))
+        imageView.setOnClickListener { v -> Toast.makeText(v.context, "Clicked", Toast.LENGTH_SHORT).show() }
+        imageView.setOnLongClickListener { v ->
+            Toast.makeText(v.context, "Long clicked", Toast.LENGTH_SHORT).show()
+            true
+        }
     }
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        SubsamplingScaleImageView imageView = findViewById(id.imageView);
-        imageView.setImage(ImageSource.asset("sanmartino.jpg"));
-        imageView.setOnClickListener(v -> Toast.makeText(v.getContext(), "Clicked", Toast.LENGTH_SHORT).show());
-        imageView.setOnLongClickListener(v -> { Toast.makeText(v.getContext(), "Long clicked", Toast.LENGTH_SHORT).show(); return true; });
-    }
-
 }

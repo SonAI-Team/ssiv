@@ -1,59 +1,45 @@
-package com.sonai.ssiv.test.extension.views;
+package com.sonai.ssiv.test.extension.views
 
-import android.content.Context;
-import android.graphics.*;
-import android.graphics.Paint.Cap;
-import android.graphics.Paint.Style;
-import android.util.AttributeSet;
+import android.content.Context
+import android.graphics.*
+import android.util.AttributeSet
+import com.sonai.ssiv.SubsamplingScaleImageView
 
-import androidx.annotation.NonNull;
+class CircleView @JvmOverloads constructor(
+    context: Context,
+    attr: AttributeSet? = null
+) : SubsamplingScaleImageView(context, attr) {
 
-import com.sonai.ssiv.SubsamplingScaleImageView;
+    private var strokeWidth: Int = 0
+    private val sCenter = PointF()
+    private val vCenter = PointF()
+    private val paint = Paint()
 
-public class CircleView extends SubsamplingScaleImageView {
-
-    private int strokeWidth;
-
-    private final PointF sCenter = new PointF();
-    private final PointF vCenter = new PointF();
-    private final Paint paint = new Paint();
-
-    public CircleView(Context context) {
-        this(context, null);
+    init {
+        val density = resources.displayMetrics.densityDpi
+        strokeWidth = (density / 60f).toInt()
     }
 
-    public CircleView(Context context, AttributeSet attr) {
-        super(context, attr);
-        initialise();
-    }
-
-    private void initialise() {
-        float density = getResources().getDisplayMetrics().densityDpi;
-        strokeWidth = (int)(density/60f);
-    }
-
-    @Override
-    protected void onDraw(@NonNull Canvas canvas) {
-        super.onDraw(canvas);
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
 
         // Don't draw pin before image is ready so it doesn't move around during setup.
-        if (!isReady()) {
-            return;
+        if (!isReady) {
+            return
         }
 
-        sCenter.set((float) getSWidth() /2, (float) getSHeight() /2);
-        sourceToViewCoord(sCenter, vCenter);
-        float radius = (getScale() * getSWidth()) * 0.25f;
+        sCenter.set(getSWidth().toFloat() / 2, getSHeight().toFloat() / 2)
+        sourceToViewCoord(sCenter, vCenter)
+        val radius = (getScale() * getSWidth()) * 0.25f
 
-        paint.setAntiAlias(true);
-        paint.setStyle(Style.STROKE);
-        paint.setStrokeCap(Cap.ROUND);
-        paint.setStrokeWidth(strokeWidth * 2);
-        paint.setColor(Color.BLACK);
-        canvas.drawCircle(vCenter.x, vCenter.y, radius, paint);
-        paint.setStrokeWidth(strokeWidth);
-        paint.setColor(Color.argb(255, 51, 181, 229));
-        canvas.drawCircle(vCenter.x, vCenter.y, radius, paint);
+        paint.isAntiAlias = true
+        paint.style = Paint.Style.STROKE
+        paint.strokeCap = Paint.Cap.ROUND
+        paint.strokeWidth = (strokeWidth * 2).toFloat()
+        paint.color = Color.BLACK
+        canvas.drawCircle(vCenter.x, vCenter.y, radius, paint)
+        paint.strokeWidth = strokeWidth.toFloat()
+        paint.color = Color.argb(255, 51, 181, 229)
+        canvas.drawCircle(vCenter.x, vCenter.y, radius, paint)
     }
-
 }

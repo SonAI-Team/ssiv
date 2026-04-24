@@ -17,7 +17,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        minSdk = 30
+        minSdk = 34
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("proguard-rules.txt")
     }
@@ -49,4 +49,3 @@ dependencies {
     "javadocs"(libs.androidx.exifinterface)
 }
 
-// apply(from = rootProject.file("release.gradle"))

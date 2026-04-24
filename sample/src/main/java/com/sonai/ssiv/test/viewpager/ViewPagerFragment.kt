@@ -1,54 +1,44 @@
-package com.sonai.ssiv.test.viewpager;
+package com.sonai.ssiv.test.viewpager
 
-import android.os.Bundle;
-import androidx.annotation.NonNull;
-import androidx.fragment.app.Fragment;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.view.ViewGroup;
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.fragment.app.Fragment
+import com.sonai.ssiv.ImageSource
+import com.sonai.ssiv.SubsamplingScaleImageView
+import com.sonai.ssiv.test.R
 
-import com.sonai.ssiv.ImageSource;
-import com.sonai.ssiv.SubsamplingScaleImageView;
-import com.sonai.ssiv.test.R.id;
-import com.sonai.ssiv.test.R.layout;
+class ViewPagerFragment : Fragment() {
 
-public class ViewPagerFragment extends Fragment {
+    private var asset: String? = null
 
-    private static final String BUNDLE_ASSET = "asset";
-
-    private String asset;
-
-    public ViewPagerFragment() {
+    fun setAsset(asset: String) {
+        this.asset = asset
     }
 
-    public void setAsset(String asset) {
-        this.asset = asset;
-    }
-
-    @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        View rootView = inflater.inflate(layout.view_pager_page, container, false);
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+        val rootView = inflater.inflate(R.layout.view_pager_page, container, false)
 
         if (savedInstanceState != null) {
             if (asset == null && savedInstanceState.containsKey(BUNDLE_ASSET)) {
-                asset = savedInstanceState.getString(BUNDLE_ASSET);
+                asset = savedInstanceState.getString(BUNDLE_ASSET)
             }
         }
-        if (asset != null) {
-            SubsamplingScaleImageView imageView = rootView.findViewById(id.imageView);
-            imageView.setImage(ImageSource.asset(asset));
+        asset?.let {
+            val imageView = rootView.findViewById<SubsamplingScaleImageView>(R.id.imageView)
+            imageView.setImage(ImageSource.asset(it))
         }
 
-        return rootView;
+        return rootView
     }
 
-    @Override
-    public void onSaveInstanceState(@NonNull Bundle outState) {
-        super.onSaveInstanceState(outState);
-        View rootView = getView();
-        if (rootView != null) {
-            outState.putString(BUNDLE_ASSET, asset);
-        }
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(BUNDLE_ASSET, asset)
     }
 
+    companion object {
+        private const val BUNDLE_ASSET = "asset"
+    }
 }

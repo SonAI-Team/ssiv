@@ -1,30 +1,25 @@
-package com.sonai.ssiv.test.extension;
+package com.sonai.ssiv.test.extension
 
-import android.os.Bundle;
-import androidx.annotation.NonNull;
-import androidx.fragment.app.Fragment;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.view.ViewGroup;
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.fragment.app.Fragment
+import com.sonai.ssiv.ImageSource
+import com.sonai.ssiv.SubsamplingScaleImageView
+import com.sonai.ssiv.test.R
 
-import com.sonai.ssiv.ImageSource;
-import com.sonai.ssiv.SubsamplingScaleImageView;
-import com.sonai.ssiv.test.R.id;
-import com.sonai.ssiv.test.R.layout;
+class ExtensionCircleFragment : Fragment() {
 
-public class ExtensionCircleFragment extends Fragment {
-
-    @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        View rootView = inflater.inflate(layout.extension_circle_fragment, container, false);
-        final ExtensionActivity activity = (ExtensionActivity)getActivity();
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+        val rootView = inflater.inflate(R.layout.extension_circle_fragment, container, false)
+        val activity = activity as? ExtensionActivity
         if (activity != null) {
-            rootView.findViewById(id.next).setOnClickListener(v -> activity.next());
-            rootView.findViewById(id.previous).setOnClickListener(v -> activity.previous());
+            rootView.findViewById<View>(R.id.next).setOnClickListener { activity.next() }
+            rootView.findViewById<View>(R.id.previous).setOnClickListener { activity.previous() }
         }
-        SubsamplingScaleImageView imageView = rootView.findViewById(id.imageView);
-        imageView.setImage(ImageSource.asset("sanmartino.jpg"));
-        return rootView;
+        val imageView = rootView.findViewById<SubsamplingScaleImageView>(R.id.imageView)
+        imageView.setImage(ImageSource.asset("sanmartino.jpg"))
+        return rootView
     }
-
 }
