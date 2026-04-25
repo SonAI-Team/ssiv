@@ -28,19 +28,14 @@ import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import com.sonai.ssiv.R.styleable
-import com.sonai.ssiv.SubsamplingScaleImageView.Companion.EASE_IN_OUT_QUAD
-import com.sonai.ssiv.SubsamplingScaleImageView.Companion.ORIENTATION_USE_EXIF
-import com.sonai.ssiv.SubsamplingScaleImageView.Companion.ORIGIN_ANIM
-import com.sonai.ssiv.SubsamplingScaleImageView.Companion.ORIGIN_TOUCH
-import com.sonai.ssiv.SubsamplingScaleImageView.Companion.PAN_LIMIT_INSIDE
-import com.sonai.ssiv.SubsamplingScaleImageView.Companion.SCALE_TYPE_CENTER_INSIDE
-import com.sonai.ssiv.SubsamplingScaleImageView.Companion.TILE_SIZE_AUTO
 import com.sonai.ssiv.decoder.CompatDecoderFactory
 import com.sonai.ssiv.decoder.DecoderFactory
 import com.sonai.ssiv.decoder.ImageRegionDecoder
 import com.sonai.ssiv.decoder.SSIVImageDecoder
 import com.sonai.ssiv.decoder.SkiaImageRegionDecoder
 import com.sonai.ssiv.decoder.SkiaSSIVImageDecoder
+import com.sonai.ssiv.internal.Anim
+import com.sonai.ssiv.internal.Tile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -125,7 +120,8 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     private var maxTileHeight = TILE_SIZE_AUTO
 
     // An executor service for loading of images
-    private var executor: Executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors())
+    private var executor: Executor =
+        Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors())
 
     // Whether tiles should be loaded while gestures and animations are still in progress
     private var eagerLoadingEnabled = true
@@ -180,8 +176,10 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     // Tile and image decoding
     private var decoder: ImageRegionDecoder? = null
     private val decoderLock: ReadWriteLock = ReentrantReadWriteLock(true)
-    private var bitmapDecoderFactory: DecoderFactory<out SSIVImageDecoder> = DecoderFactory { SkiaSSIVImageDecoder() }
-    private var regionDecoderFactory: DecoderFactory<out ImageRegionDecoder> = DecoderFactory { SkiaImageRegionDecoder() }
+    private var bitmapDecoderFactory: DecoderFactory<out SSIVImageDecoder> =
+        DecoderFactory { SkiaSSIVImageDecoder() }
+    private var regionDecoderFactory: DecoderFactory<out ImageRegionDecoder> =
+        DecoderFactory { SkiaImageRegionDecoder() }
 
     // Debug values
     private var vCenterStart: PointF? = null
@@ -218,13 +216,15 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     private var onLongClickListener: OnLongClickListener? = null
     private var longClickJob: Job? = null
 
-    private var scope: CoroutineScope? = null
+    private var scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     // Paint objects created once and reused for efficiency
     private var bitmapPaint: Paint? = null
     private var debugTextPaint: Paint? = null
     private var debugLinePaint: Paint? = null
     private var tileBgPaint: Paint? = null
+
+    private var tileEnhancer: com.sonai.ssiv.ai.TileEnhancer? = null
 
     // Volatile fields used to reduce object creation
     private var satTemp: ScaleAndTranslate? = null
@@ -290,15 +290,27 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                     )
                 }
                 if (hasValue(styleable.SubsamplingScaleImageView_doubleTapZoomStyle)) {
-                    setDoubleTapZoomStyle(getInt(styleable.SubsamplingScaleImageView_doubleTapZoomStyle, ZOOM_FOCUS_FIXED))
+                    setDoubleTapZoomStyle(
+                        getInt(
+                            styleable.SubsamplingScaleImageView_doubleTapZoomStyle,
+                            ZOOM_FOCUS_FIXED
+                        )
+                    )
                 }
                 if (hasValue(styleable.SubsamplingScaleImageView_restoreStrategy)) {
-                    restoreStrategy = getInt(styleable.SubsamplingScaleImageView_restoreStrategy, RESTORE_STRATEGY_DEFERRED)
+                    restoreStrategy = getInt(
+                        styleable.SubsamplingScaleImageView_restoreStrategy,
+                        RESTORE_STRATEGY_DEFERRED
+                    )
                 }
             }
         }
 
-        quickScaleThreshold = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20f, context.resources.displayMetrics)
+        quickScaleThreshold = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            20f,
+            context.resources.displayMetrics
+        )
     }
 
     /**
@@ -311,6 +323,11 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         this.orientation = orientation
         reset(false)
         invalidate()
+    }
+
+    // Set a tile enhancer to use AI for upscaling tiles.
+    fun setTileEnhancer(enhancer: com.sonai.ssiv.ai.TileEnhancer?) {
+        this.tileEnhancer = enhancer
         requestLayout()
     }
 
@@ -377,14 +394,22 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                 var uri = previewSource.uri
                 if (uri == null && previewSource.resource != null) {
                     uri =
-                    "${ContentResolver.SCHEME_ANDROID_RESOURCE}://${context.packageName}/${previewSource.resource}".toUri()
+                        "${ContentResolver.SCHEME_ANDROID_RESOURCE}://${context.packageName}/${previewSource.resource}".toUri()
                 }
                 executeBitmapLoadTask(context, bitmapDecoderFactory, uri!!, true)
             }
         }
 
         if (imageSource.bitmap != null && imageSource.sRegion != null) {
-            onImageLoaded(Bitmap.createBitmap(imageSource.bitmap, imageSource.sRegion!!.left, imageSource.sRegion!!.top, imageSource.sRegion!!.width(), imageSource.sRegion!!.height()), ORIENTATION_0, false)
+            onImageLoaded(
+                Bitmap.createBitmap(
+                    imageSource.bitmap,
+                    imageSource.sRegion!!.left,
+                    imageSource.sRegion!!.top,
+                    imageSource.sRegion!!.width(),
+                    imageSource.sRegion!!.height()
+                ), ORIENTATION_0, false
+            )
         } else if (imageSource.bitmap != null) {
             onImageLoaded(imageSource.bitmap, ORIENTATION_0, imageSource.isCached)
         } else {
@@ -392,7 +417,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             uri = imageSource.uri
             if (uri == null && imageSource.resource != null) {
                 uri =
-                "${ContentResolver.SCHEME_ANDROID_RESOURCE}://${context.packageName}/${imageSource.resource}".toUri()
+                    "${ContentResolver.SCHEME_ANDROID_RESOURCE}://${context.packageName}/${imageSource.resource}".toUri()
             }
             if (imageSource.tile || sRegion != null) {
                 // Load the bitmap using tile decoding.
@@ -474,60 +499,75 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     }
 
     private fun setGestureDetector(context: Context) {
-        this.detector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        this.detector =
+            GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
 
-            override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
-                if (panEnabled && readySent && vTranslate != null && e1 != null && (abs(e1.x - e2.x) > 50 || abs(e1.y - e2.y) > 50) && (abs(velocityX) > 500 || abs(velocityY) > 500) && !isZooming) {
-                    val vTranslateEnd = PointF(vTranslate!!.x + velocityX * 0.25f, vTranslate!!.y + velocityY * 0.25f)
-                    val sCenterXEnd = (width / 2 - vTranslateEnd.x) / scale
-                    val sCenterYEnd = (height / 2 - vTranslateEnd.y) / scale
-                    AnimationBuilder(PointF(sCenterXEnd, sCenterYEnd)).withEasing(EASE_OUT_QUAD).withPanLimited(false).withOrigin(ORIGIN_FLING).start()
+                override fun onFling(
+                    e1: MotionEvent?,
+                    e2: MotionEvent,
+                    velocityX: Float,
+                    velocityY: Float
+                ): Boolean {
+                    if (panEnabled && readySent && vTranslate != null && e1 != null && (abs(e1.x - e2.x) > 50 || abs(
+                            e1.y - e2.y
+                        ) > 50) && (abs(velocityX) > 500 || abs(velocityY) > 500) && !isZooming
+                    ) {
+                        val vTranslateEnd = PointF(
+                            vTranslate!!.x + velocityX * 0.25f,
+                            vTranslate!!.y + velocityY * 0.25f
+                        )
+                        val sCenterXEnd = (width / 2 - vTranslateEnd.x) / scale
+                        val sCenterYEnd = (height / 2 - vTranslateEnd.y) / scale
+                        AnimationBuilder(PointF(sCenterXEnd, sCenterYEnd)).withEasing(EASE_OUT_QUAD)
+                            .withPanLimited(false).withOrigin(ORIGIN_FLING).start()
+                        return true
+                    }
+                    return super.onFling(e1, e2, velocityX, velocityY)
+                }
+
+                override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                    performClick()
                     return true
                 }
-                return super.onFling(e1, e2, velocityX, velocityY)
-            }
 
-            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                performClick()
-                return true
-            }
-
-            override fun onDoubleTap(e: MotionEvent): Boolean {
-                if (zoomEnabled && readySent && vTranslate != null) {
-                    // Hacky solution for #15 - after a double tap the GestureDetector gets in a state
-                    // where the next fling is ignored, so here we replace it with a new one.
-                    setGestureDetector(context)
-                    return if (quickScaleEnabled) {
-                        // Store quick scale params. This will become either a double tap zoom or a
-                        // quick scale depending on whether the user swipes.
-                        vCenterStart = PointF(e.x, e.y)
-                        vTranslateStart = PointF(vTranslate!!.x, vTranslate!!.y)
-                        scaleStart = scale
-                        isQuickScaling = true
-                        isZooming = true
-                        quickScaleLastDistance = -1f
-                        quickScaleSCenter = viewToSourceCoord(vCenterStart!!)
-                        quickScaleVStart = PointF(e.x, e.y)
-                        quickScaleVLastPoint = PointF(quickScaleSCenter!!.x, quickScaleSCenter!!.y)
-                        quickScaleMoved = false
-                        // We need to get events in onTouchEvent after this.
-                        false
-                    } else {
-                        // Start double tap zoom animation.
-                        doubleTapZoom(viewToSourceCoord(PointF(e.x, e.y))!!, PointF(e.x, e.y))
-                        true
+                override fun onDoubleTap(e: MotionEvent): Boolean {
+                    if (zoomEnabled && readySent && vTranslate != null) {
+                        // Hacky solution for #15 - after a double tap the GestureDetector gets in a state
+                        // where the next fling is ignored, so here we replace it with a new one.
+                        setGestureDetector(context)
+                        return if (quickScaleEnabled) {
+                            // Store quick scale params. This will become either a double tap zoom or a
+                            // quick scale depending on whether the user swipes.
+                            vCenterStart = PointF(e.x, e.y)
+                            vTranslateStart = PointF(vTranslate!!.x, vTranslate!!.y)
+                            scaleStart = scale
+                            isQuickScaling = true
+                            isZooming = true
+                            quickScaleLastDistance = -1f
+                            quickScaleSCenter = viewToSourceCoord(vCenterStart!!)
+                            quickScaleVStart = PointF(e.x, e.y)
+                            quickScaleVLastPoint =
+                                PointF(quickScaleSCenter!!.x, quickScaleSCenter!!.y)
+                            quickScaleMoved = false
+                            // We need to get events in onTouchEvent after this.
+                            false
+                        } else {
+                            // Start double tap zoom animation.
+                            doubleTapZoom(viewToSourceCoord(PointF(e.x, e.y))!!, PointF(e.x, e.y))
+                            true
+                        }
                     }
+                    return super.onDoubleTapEvent(e)
                 }
-                return super.onDoubleTapEvent(e)
-            }
-        })
+            })
 
-        singleDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                performClick()
-                return true
-            }
-        })
+        singleDetector =
+            GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+                override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                    performClick()
+                    return true
+                }
+            })
     }
 
     /**
@@ -573,17 +613,21 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     }
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
-        scope?.cancel()
-        scope = null
+        scope.cancel()
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     }
 
-    private fun executeTilesInitTask(context: Context, decoderFactory: DecoderFactory<out ImageRegionDecoder>, source: Uri) {
-        scope?.launch {
+    private fun executeTilesInitTask(
+        context: Context,
+        decoderFactory: DecoderFactory<out ImageRegionDecoder>,
+        source: Uri
+    ) {
+        Log.d(TAG, "executeTilesInitTask source=$source")
+        scope.launch {
             var decoder: ImageRegionDecoder? = null
             var exception: Exception? = null
             val result = withContext(executor.asCoroutineDispatcher()) {
@@ -623,12 +667,16 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
 
     private fun executeTileLoadTask(decoder: ImageRegionDecoder, tile: Tile) {
         tile.loading = true
-        scope?.launch {
+        scope.launch {
             var exception: Exception? = null
             val bitmap = withContext(executor.asCoroutineDispatcher()) {
                 try {
                     if (decoder.isReady() && tile.visible) {
-                        debug("TileLoadTask.doInBackground, tile.sRect=%s, tile.sampleSize=%d", tile.sRect!!, tile.sampleSize)
+                        debug(
+                            "TileLoadTask.doInBackground, tile.sRect=%s, tile.sampleSize=%d",
+                            tile.sRect!!,
+                            tile.sampleSize
+                        )
                         decoderLock.readLock().lock()
                         try {
                             if (decoder.isReady()) {
@@ -637,7 +685,14 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                                 sRegion?.let {
                                     tile.fileSRect!!.offset(it.left, it.top)
                                 }
-                                decoder.decodeRegion(tile.fileSRect!!, tile.sampleSize)
+                                val decoded =
+                                    decoder.decodeRegion(tile.fileSRect!!, tile.sampleSize)
+                                var b = decoded
+                                    ?: throw IllegalStateException("Decoder returned null bitmap")
+                                if (tileEnhancer != null && tile.sampleSize > 1) {
+                                    b = tileEnhancer!!.enhance(b)
+                                }
+                                b
                             } else {
                                 tile.loading = false
                                 null
@@ -671,8 +726,13 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         }
     }
 
-    private fun executeBitmapLoadTask(context: Context, decoderFactory: DecoderFactory<out SSIVImageDecoder>, source: Uri, preview: Boolean) {
-        scope?.launch {
+    private fun executeBitmapLoadTask(
+        context: Context,
+        decoderFactory: DecoderFactory<out SSIVImageDecoder>,
+        source: Uri,
+        preview: Boolean
+    ) {
+        scope.launch {
             var bitmap: Bitmap? = null
             var exception: Exception? = null
             val orientation = withContext(executor.asCoroutineDispatcher()) {
@@ -770,11 +830,15 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                 if (touchCount >= 2) {
                     if (zoomEnabled) {
                         // Start pinch to zoom. Calculate distance between touch points and center point of the pinch.
-                        val distance = distance(event.getX(0), event.getX(1), event.getY(0), event.getY(1))
+                        val distance =
+                            distance(event.getX(0), event.getX(1), event.getY(0), event.getY(1))
                         scaleStart = scale
                         vDistStart = distance
                         vTranslateStart!!.set(vTranslate!!.x, vTranslate!!.y)
-                        vCenterStart!!.set((event.getX(0) + event.getX(1)) / 2, (event.getY(0) + event.getY(1)) / 2)
+                        vCenterStart!!.set(
+                            (event.getX(0) + event.getX(1)) / 2,
+                            (event.getY(0) + event.getY(1)) / 2
+                        )
                     } else {
                         // Abort all gestures on second touch
                         maxTouchCount = 0
@@ -787,11 +851,13 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                     vCenterStart!!.set(event.x, event.y)
 
                     // Start long click timer
-                    longClickJob = scope?.launch {
+                    longClickJob = scope.launch {
                         delay(600)
                         if (onLongClickListener != null) {
                             maxTouchCount = 0
-                            super@SubsamplingScaleImageView.setOnLongClickListener(onLongClickListener)
+                            super@SubsamplingScaleImageView.setOnLongClickListener(
+                                onLongClickListener
+                            )
                             performLongClick()
                             super@SubsamplingScaleImageView.setOnLongClickListener(null)
                         }
@@ -799,16 +865,24 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                 }
                 return true
             }
+
             MotionEvent.ACTION_MOVE -> {
                 var consumed = false
                 if (maxTouchCount > 0) {
                     if (touchCount >= 2) {
                         // Calculate new distance between touch points, to scale and pan relative to start values.
-                        val vDistEnd = distance(event.getX(0), event.getX(1), event.getY(0), event.getY(1))
+                        val vDistEnd =
+                            distance(event.getX(0), event.getX(1), event.getY(0), event.getY(1))
                         val vCenterEndX = (event.getX(0) + event.getX(1)) / 2
                         val vCenterEndY = (event.getY(0) + event.getY(1)) / 2
 
-                        if (zoomEnabled && (distance(vCenterStart!!.x, vCenterEndX, vCenterStart!!.y, vCenterEndY) > 5 || abs(vDistEnd - vDistStart) > 5 || isPanning)) {
+                        if (zoomEnabled && (distance(
+                                vCenterStart!!.x,
+                                vCenterEndX,
+                                vCenterStart!!.y,
+                                vCenterEndY
+                            ) > 5 || abs(vDistEnd - vDistStart) > 5 || isPanning)
+                        ) {
                             isZooming = true
                             isPanning = true
                             consumed = true
@@ -951,6 +1025,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                     return true
                 }
             }
+
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 longClickJob?.cancel()
                 if (isQuickScaling) {
@@ -1021,9 +1096,13 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         if (doubleTapZoomStyle == ZOOM_FOCUS_CENTER_IMMEDIATE) {
             setScaleAndCenter(targetScale, sCenter)
         } else if (doubleTapZoomStyle == ZOOM_FOCUS_CENTER || !zoomIn || !panEnabled) {
-            AnimationBuilder(targetScale, sCenter).withInterruptible(false).withDuration(doubleTapZoomDuration.toLong()).withOrigin(ORIGIN_DOUBLE_TAP_ZOOM).start()
+            AnimationBuilder(targetScale, sCenter).withInterruptible(false)
+                .withDuration(doubleTapZoomDuration.toLong()).withOrigin(ORIGIN_DOUBLE_TAP_ZOOM)
+                .start()
         } else if (doubleTapZoomStyle == ZOOM_FOCUS_FIXED) {
-            AnimationBuilder(targetScale, sCenter, vFocus).withInterruptible(false).withDuration(doubleTapZoomDuration.toLong()).withOrigin(ORIGIN_DOUBLE_TAP_ZOOM).start()
+            AnimationBuilder(targetScale, sCenter, vFocus).withInterruptible(false)
+                .withDuration(doubleTapZoomDuration.toLong()).withOrigin(ORIGIN_DOUBLE_TAP_ZOOM)
+                .start()
         }
         invalidate()
     }
@@ -1056,44 +1135,65 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         // Set scale and translate before draw.
         preDraw()
 
-        // If animating scale, calculate current scale and center with easing equations
-        if (anim != null && anim!!.vFocusStart != null) {
-            // Store current values so we can send an event if they change
-            val scaleBefore = scale
-            if (vTranslateBefore == null) {
-                vTranslateBefore = PointF(0f, 0f)
-            }
-            vTranslateBefore!!.set(vTranslate!!)
+        drawAnimation(canvas)
+        drawTiles(canvas)
+        drawFullBitmap(canvas)
+        drawDebug(canvas)
+    }
 
-            var scaleElapsed = System.currentTimeMillis() - anim!!.time
-            val finished = scaleElapsed > anim!!.duration
-            scaleElapsed = min(scaleElapsed, anim!!.duration)
-            scale = ease(anim!!.easing, scaleElapsed, anim!!.scaleStart, anim!!.scaleEnd - anim!!.scaleStart, anim!!.duration)
+    private fun drawAnimation(canvas: Canvas) {
+        val a = anim ?: return
+        if (a.vFocusStart == null) return
 
-            // Apply required animation to the focal point
-            val vFocusNowX = ease(anim!!.easing, scaleElapsed, anim!!.vFocusStart!!.x, anim!!.vFocusEnd!!.x - anim!!.vFocusStart!!.x, anim!!.duration)
-            val vFocusNowY = ease(anim!!.easing, scaleElapsed, anim!!.vFocusStart!!.y, anim!!.vFocusEnd!!.y - anim!!.vFocusStart!!.y, anim!!.duration)
-            // Find out where the focal point is at this scale and adjust its position to follow the animation path
-            vTranslate!!.x -= sourceToViewX(anim!!.sCenterEnd!!.x) - vFocusNowX
-            vTranslate!!.y -= sourceToViewY(anim!!.sCenterEnd!!.y) - vFocusNowY
-
-            // For translate anims, showing the image non-centered is never allowed, for scaling anims it is during the animation.
-            fitToBounds(finished || anim!!.scaleStart == anim!!.scaleEnd)
-            sendStateChanged(scaleBefore, vTranslateBefore!!, anim!!.origin)
-            refreshRequiredTiles(finished)
-            if (finished) {
-                anim!!.listener?.let {
-                    try {
-                        it.onComplete()
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Error thrown by animation listener", e)
-                    }
-                }
-                anim = null
-            }
-            invalidate()
+        // Store current values so we can send an event if they change
+        val scaleBefore = scale
+        if (vTranslateBefore == null) {
+            vTranslateBefore = PointF(0f, 0f)
         }
+        vTranslateBefore!!.set(vTranslate!!)
 
+        var scaleElapsed = System.currentTimeMillis() - a.time
+        val finished = scaleElapsed > a.duration
+        scaleElapsed = min(scaleElapsed, a.duration)
+        scale = ease(a.easing, scaleElapsed, a.scaleStart, a.scaleEnd - a.scaleStart, a.duration)
+
+        // Apply required animation to the focal point
+        val vFocusNowX = ease(
+            a.easing,
+            scaleElapsed,
+            a.vFocusStart!!.x,
+            a.vFocusEnd!!.x - a.vFocusStart!!.x,
+            a.duration
+        )
+        val vFocusNowY = ease(
+            a.easing,
+            scaleElapsed,
+            a.vFocusStart!!.y,
+            a.vFocusEnd!!.y - a.vFocusStart!!.y,
+            a.duration
+        )
+        // Find out where the focal point is at this scale and adjust its position to follow the animation path
+        vTranslate!!.x -= sourceToViewX(a.sCenterEnd!!.x) - vFocusNowX
+        vTranslate!!.y -= sourceToViewY(a.sCenterEnd!!.y) - vFocusNowY
+
+        // For translate anims, showing the image non-centered is never allowed, for scaling anims it is during the animation.
+        fitToBounds(finished || a.scaleStart == a.scaleEnd)
+        sendStateChanged(scaleBefore, vTranslateBefore!!, a.origin)
+        refreshRequiredTiles(finished)
+        if (finished) {
+            a.listener?.let {
+                try {
+                    it.onComplete()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error thrown by animation listener", e)
+                }
+            }
+            anim = null
+        }
+        invalidate()
+    }
+
+    private fun drawTiles(canvas: Canvas) {
         if (tileMap != null && isBaseLayerReady()) {
 
             // Optimum sample size for current scale
@@ -1124,12 +1224,65 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                                 matrix = Matrix()
                             }
                             matrix!!.reset()
-                            setMatrixArray(srcArray, 0f, 0f, tile.bitmap!!.width.toFloat(), 0f, tile.bitmap!!.width.toFloat(), tile.bitmap!!.height.toFloat(), 0f, tile.bitmap!!.height.toFloat())
+                            setMatrixArray(
+                                srcArray,
+                                0f,
+                                0f,
+                                tile.bitmap!!.width.toFloat(),
+                                0f,
+                                tile.bitmap!!.width.toFloat(),
+                                tile.bitmap!!.height.toFloat(),
+                                0f,
+                                tile.bitmap!!.height.toFloat()
+                            )
                             when (getRequiredRotation()) {
-                                ORIENTATION_0 -> setMatrixArray(dstArray, tile.vRect!!.left.toFloat(), tile.vRect!!.top.toFloat(), tile.vRect!!.right.toFloat(), tile.vRect!!.top.toFloat(), tile.vRect!!.right.toFloat(), tile.vRect!!.bottom.toFloat(), tile.vRect!!.left.toFloat(), tile.vRect!!.bottom.toFloat())
-                                ORIENTATION_90 -> setMatrixArray(dstArray, tile.vRect!!.right.toFloat(), tile.vRect!!.top.toFloat(), tile.vRect!!.right.toFloat(), tile.vRect!!.bottom.toFloat(), tile.vRect!!.left.toFloat(), tile.vRect!!.bottom.toFloat(), tile.vRect!!.left.toFloat(), tile.vRect!!.top.toFloat())
-                                ORIENTATION_180 -> setMatrixArray(dstArray, tile.vRect!!.right.toFloat(), tile.vRect!!.bottom.toFloat(), tile.vRect!!.left.toFloat(), tile.vRect!!.bottom.toFloat(), tile.vRect!!.left.toFloat(), tile.vRect!!.top.toFloat(), tile.vRect!!.right.toFloat(), tile.vRect!!.top.toFloat())
-                                ORIENTATION_270 -> setMatrixArray(dstArray, tile.vRect!!.left.toFloat(), tile.vRect!!.bottom.toFloat(), tile.vRect!!.left.toFloat(), tile.vRect!!.top.toFloat(), tile.vRect!!.right.toFloat(), tile.vRect!!.top.toFloat(), tile.vRect!!.right.toFloat(), tile.vRect!!.bottom.toFloat())
+                                ORIENTATION_0 -> setMatrixArray(
+                                    dstArray,
+                                    tile.vRect!!.left.toFloat(),
+                                    tile.vRect!!.top.toFloat(),
+                                    tile.vRect!!.right.toFloat(),
+                                    tile.vRect!!.top.toFloat(),
+                                    tile.vRect!!.right.toFloat(),
+                                    tile.vRect!!.bottom.toFloat(),
+                                    tile.vRect!!.left.toFloat(),
+                                    tile.vRect!!.bottom.toFloat()
+                                )
+
+                                ORIENTATION_90 -> setMatrixArray(
+                                    dstArray,
+                                    tile.vRect!!.right.toFloat(),
+                                    tile.vRect!!.top.toFloat(),
+                                    tile.vRect!!.right.toFloat(),
+                                    tile.vRect!!.bottom.toFloat(),
+                                    tile.vRect!!.left.toFloat(),
+                                    tile.vRect!!.bottom.toFloat(),
+                                    tile.vRect!!.left.toFloat(),
+                                    tile.vRect!!.top.toFloat()
+                                )
+
+                                ORIENTATION_180 -> setMatrixArray(
+                                    dstArray,
+                                    tile.vRect!!.right.toFloat(),
+                                    tile.vRect!!.bottom.toFloat(),
+                                    tile.vRect!!.left.toFloat(),
+                                    tile.vRect!!.bottom.toFloat(),
+                                    tile.vRect!!.left.toFloat(),
+                                    tile.vRect!!.top.toFloat(),
+                                    tile.vRect!!.right.toFloat(),
+                                    tile.vRect!!.top.toFloat()
+                                )
+
+                                ORIENTATION_270 -> setMatrixArray(
+                                    dstArray,
+                                    tile.vRect!!.left.toFloat(),
+                                    tile.vRect!!.bottom.toFloat(),
+                                    tile.vRect!!.left.toFloat(),
+                                    tile.vRect!!.top.toFloat(),
+                                    tile.vRect!!.right.toFloat(),
+                                    tile.vRect!!.top.toFloat(),
+                                    tile.vRect!!.right.toFloat(),
+                                    tile.vRect!!.bottom.toFloat()
+                                )
                             }
                             matrix!!.setPolyToPoly(srcArray, 0, dstArray, 0, 4)
                             canvas.drawBitmap(tile.bitmap!!, matrix!!, bitmapPaint)
@@ -1137,16 +1290,29 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                                 canvas.drawRect(tile.vRect!!, debugLinePaint!!)
                             }
                         } else if (tile.loading && debug) {
-                            canvas.drawText("LOADING", (tile.vRect!!.left + px(5)).toFloat(), (tile.vRect!!.top + px(35)).toFloat(), debugTextPaint!!)
+                            canvas.drawText(
+                                "LOADING",
+                                (tile.vRect!!.left + px(5)).toFloat(),
+                                (tile.vRect!!.top + px(35)).toFloat(),
+                                debugTextPaint!!
+                            )
                         }
                         if (tile.visible && debug) {
-                            canvas.drawText("ISS ${tile.sampleSize} RECT ${tile.sRect!!.top},${tile.sRect!!.left},${tile.sRect!!.bottom},${tile.sRect!!.right}", (tile.vRect!!.left + px(5)).toFloat(), (tile.vRect!!.top + px(15)).toFloat(), debugTextPaint!!)
+                            canvas.drawText(
+                                "ISS ${tile.sampleSize} RECT ${tile.sRect!!.top},${tile.sRect!!.left},${tile.sRect!!.bottom},${tile.sRect!!.right}",
+                                (tile.vRect!!.left + px(5)).toFloat(),
+                                (tile.vRect!!.top + px(15)).toFloat(),
+                                debugTextPaint!!
+                            )
                         }
                     }
                 }
             }
+        }
+    }
 
-        } else if (bitmap != null && !bitmap!!.isRecycled) {
+    private fun drawFullBitmap(canvas: Canvas) {
+        if ((tileMap == null || !isBaseLayerReady()) && bitmap != null && !bitmap!!.isRecycled) {
 
             var xScale = scale
             var yScale = scale
@@ -1173,33 +1339,98 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                 if (sRect == null) {
                     sRect = RectF()
                 }
-                sRect!!.set(0f, 0f, (if (bitmapIsPreview) bitmap!!.width else sWidth).toFloat(), (if (bitmapIsPreview) bitmap!!.height else sHeight).toFloat())
+                sRect!!.set(
+                    0f,
+                    0f,
+                    (if (bitmapIsPreview) bitmap!!.width else sWidth).toFloat(),
+                    (if (bitmapIsPreview) bitmap!!.height else sHeight).toFloat()
+                )
                 matrix!!.mapRect(sRect)
                 canvas.drawRect(sRect!!, it)
             }
             canvas.drawBitmap(bitmap!!, matrix!!, bitmapPaint)
-
         }
+    }
 
+    private fun drawDebug(canvas: Canvas) {
         if (debug) {
-            canvas.drawText("Scale: ${String.format(Locale.ENGLISH, "%.2f", scale)} (${String.format(Locale.ENGLISH, "%.2f", minScale())} - ${String.format(Locale.ENGLISH, "%.2f", maxScale)})", px(5).toFloat(), px(15).toFloat(), debugTextPaint!!)
-            canvas.drawText("Translate: ${String.format(Locale.ENGLISH, "%.2f", vTranslate!!.x)}:${String.format(Locale.ENGLISH, "%.2f", vTranslate!!.y)}", px(5).toFloat(), px(30).toFloat(), debugTextPaint!!)
+            canvas.drawText(
+                "Scale: ${
+                    String.format(
+                        Locale.ENGLISH,
+                        "%.2f",
+                        scale
+                    )
+                } (${
+                    String.format(
+                        Locale.ENGLISH,
+                        "%.2f",
+                        minScale()
+                    )
+                } - ${String.format(Locale.ENGLISH, "%.2f", maxScale)})",
+                px(5).toFloat(),
+                px(15).toFloat(),
+                debugTextPaint!!
+            )
+            canvas.drawText(
+                "Translate: ${
+                    String.format(
+                        Locale.ENGLISH,
+                        "%.2f",
+                        vTranslate!!.x
+                    )
+                }:${String.format(Locale.ENGLISH, "%.2f", vTranslate!!.y)}",
+                px(5).toFloat(),
+                px(30).toFloat(),
+                debugTextPaint!!
+            )
             val currentCenter = center
             if (currentCenter != null) {
                 centerDebug.set(currentCenter)
-                canvas.drawText("Source center: ${String.format(Locale.ENGLISH, "%.2f", centerDebug.x)}:${String.format(Locale.ENGLISH, "%.2f", centerDebug.y)}", px(5).toFloat(), px(45).toFloat(), debugTextPaint!!)
+                canvas.drawText(
+                    "Source center: ${
+                        String.format(
+                            Locale.ENGLISH,
+                            "%.2f",
+                            centerDebug.x
+                        )
+                    }:${String.format(Locale.ENGLISH, "%.2f", centerDebug.y)}",
+                    px(5).toFloat(),
+                    px(45).toFloat(),
+                    debugTextPaint!!
+                )
             }
             anim?.let {
                 sourceToViewCoord(it.sCenterStart!!, vCenterStartDebug)
                 sourceToViewCoord(it.sCenterEndRequested!!, vCenterEndRequestedDebug)
                 sourceToViewCoord(it.sCenterEnd!!, vCenterEndDebug)
-                canvas.drawCircle(vCenterStartDebug.x, vCenterStartDebug.y, px(10).toFloat(), debugLinePaint!!)
+                canvas.drawCircle(
+                    vCenterStartDebug.x,
+                    vCenterStartDebug.y,
+                    px(10).toFloat(),
+                    debugLinePaint!!
+                )
                 debugLinePaint!!.color = Color.RED
-                canvas.drawCircle(vCenterEndRequestedDebug.x, vCenterEndRequestedDebug.y, px(20).toFloat(), debugLinePaint!!)
+                canvas.drawCircle(
+                    vCenterEndRequestedDebug.x,
+                    vCenterEndRequestedDebug.y,
+                    px(20).toFloat(),
+                    debugLinePaint!!
+                )
                 debugLinePaint!!.color = Color.BLUE
-                canvas.drawCircle(vCenterEndDebug.x, vCenterEndDebug.y, px(25).toFloat(), debugLinePaint!!)
+                canvas.drawCircle(
+                    vCenterEndDebug.x,
+                    vCenterEndDebug.y,
+                    px(25).toFloat(),
+                    debugLinePaint!!
+                )
                 debugLinePaint!!.color = Color.CYAN
-                canvas.drawCircle((width / 2).toFloat(), (height / 2).toFloat(), px(30).toFloat(), debugLinePaint!!)
+                canvas.drawCircle(
+                    (width / 2).toFloat(),
+                    (height / 2).toFloat(),
+                    px(30).toFloat(),
+                    debugLinePaint!!
+                )
             }
             vCenterStart?.let {
                 debugLinePaint!!.color = Color.RED
@@ -1207,7 +1438,12 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             }
             quickScaleSCenter?.let {
                 debugLinePaint!!.color = Color.BLUE
-                canvas.drawCircle(sourceToViewX(it.x), sourceToViewY(it.y), px(35).toFloat(), debugLinePaint!!)
+                canvas.drawCircle(
+                    sourceToViewX(it.x),
+                    sourceToViewY(it.y),
+                    px(35).toFloat(),
+                    debugLinePaint!!
+                )
             }
             quickScaleVStart?.let {
                 if (isQuickScaling) {
@@ -1222,7 +1458,17 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     /**
      * Helper method for setting the values of a tile matrix array.
      */
-    private fun setMatrixArray(array: FloatArray, f0: Float, f1: Float, f2: Float, f3: Float, f4: Float, f5: Float, f6: Float, f7: Float) {
+    private fun setMatrixArray(
+        array: FloatArray,
+        f0: Float,
+        f1: Float,
+        f2: Float,
+        f3: Float,
+        f4: Float,
+        f5: Float,
+        f6: Float,
+        f7: Float
+    ) {
         array[0] = f0
         array[1] = f1
         array[2] = f2
@@ -1261,7 +1507,8 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
      * display an image.
      */
     private fun checkReady(): Boolean {
-        val ready = width > 0 && height > 0 && sWidth > 0 && sHeight > 0 && (bitmap != null || isBaseLayerReady())
+        val ready =
+            width > 0 && height > 0 && sWidth > 0 && sHeight > 0 && (bitmap != null || isBaseLayerReady())
         if (!readySent && ready) {
             preDraw()
             readySent = true
@@ -1316,7 +1563,11 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
      */
     @Synchronized
     private fun initialiseBaseLayer(maxTileDimensions: Point) {
-        debug("initialiseBaseLayer maxTileDimensions=%dx%d", maxTileDimensions.x, maxTileDimensions.y)
+        debug(
+            "initialiseBaseLayer maxTileDimensions=%dx%d",
+            maxTileDimensions.x,
+            maxTileDimensions.y
+        )
 
         satTemp = ScaleAndTranslate(0f, PointF(0f, 0f))
         fitToBounds(true, satTemp!!)
@@ -1505,8 +1756,10 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         }
 
         // Asymmetric padding adjustments
-        val xPaddingRatio = if (paddingLeft > 0 || paddingRight > 0) paddingLeft.toFloat() / (paddingLeft + paddingRight) else 0.5f
-        val yPaddingRatio = if (paddingTop > 0 || paddingBottom > 0) paddingTop.toFloat() / (paddingTop + paddingBottom) else 0.5f
+        val xPaddingRatio =
+            if (paddingLeft > 0 || paddingRight > 0) paddingLeft.toFloat() / (paddingLeft + paddingRight) else 0.5f
+        val yPaddingRatio =
+            if (paddingTop > 0 || paddingBottom > 0) paddingTop.toFloat() / (paddingTop + paddingBottom) else 0.5f
 
         val maxTx: Float
         val maxTy: Float
@@ -1547,7 +1800,13 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         scale = satTemp!!.scale
         vTranslate!!.set(satTemp!!.vTranslate)
         if (init && minimumScaleType != SCALE_TYPE_START) {
-            vTranslate!!.set(vTranslateForSCenter((sWidth() / 2).toFloat(), (sHeight() / 2).toFloat(), scale))
+            vTranslate!!.set(
+                vTranslateForSCenter(
+                    (sWidth() / 2).toFloat(),
+                    (sHeight() / 2).toFloat(),
+                    scale
+                )
+            )
         }
     }
 
@@ -1585,7 +1844,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                         x * sTileWidth,
                         y * sTileHeight,
                         if (x == xTiles - 1) sWidth() else (x + 1) * sTileWidth,
-                            if (y == yTiles - 1) sHeight() else (y + 1) * sTileHeight
+                        if (y == yTiles - 1) sHeight() else (y + 1) * sTileHeight
                     )
                     tile.vRect = Rect(0, 0, 0, 0)
                     tile.fileSRect = Rect(tile.sRect!!)
@@ -1608,7 +1867,12 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
      * Called by worker task when decoder is ready and image size and EXIF orientation is known.
      */
     @Synchronized
-    private fun onTilesInited(decoder: ImageRegionDecoder, sWidth: Int, sHeight: Int, sOrientation: Int) {
+    private fun onTilesInited(
+        decoder: ImageRegionDecoder,
+        sWidth: Int,
+        sHeight: Int,
+        sOrientation: Int
+    ) {
         debug("onTilesInited sWidth=%d, sHeight=%d, sOrientation=%d", sWidth, sHeight, orientation)
         // If actual dimensions don't match the declared size, reset everything.
         if (this.sWidth > 0 && this.sHeight > 0 && (this.sWidth != sWidth || this.sHeight != sHeight)) {
@@ -1678,7 +1942,13 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             return
         }
         bitmap = if (pRegion != null) {
-            Bitmap.createBitmap(previewBitmap, pRegion!!.left, pRegion!!.top, pRegion!!.width(), pRegion!!.height())
+            Bitmap.createBitmap(
+                previewBitmap,
+                pRegion!!.left,
+                pRegion!!.top,
+                pRegion!!.width(),
+                pRegion!!.height()
+            )
         } else {
             previewBitmap
         }
@@ -1748,23 +2018,34 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             } finally {
                 cursor?.close()
             }
-        } else if (sourceUri.startsWith(ImageSource.FILE_SCHEME) && !sourceUri.startsWith(ImageSource.ASSET_SCHEME)) {
+        } else if (sourceUri.startsWith(ImageSource.FILE_SCHEME) && !sourceUri.startsWith(
+                ImageSource.ASSET_SCHEME
+            )
+        ) {
             try {
-                val exifInterface = ExifInterface(sourceUri.substring(ImageSource.FILE_SCHEME.length - 1))
-                val orientationAttr = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+                val exifInterface =
+                    ExifInterface(sourceUri.substring(ImageSource.FILE_SCHEME.length - 1))
+                val orientationAttr = exifInterface.getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL
+                )
                 when (orientationAttr) {
                     ExifInterface.ORIENTATION_NORMAL, ExifInterface.ORIENTATION_UNDEFINED -> {
                         exifOrientation = ORIENTATION_0
                     }
+
                     ExifInterface.ORIENTATION_ROTATE_90 -> {
                         exifOrientation = ORIENTATION_90
                     }
+
                     ExifInterface.ORIENTATION_ROTATE_180 -> {
                         exifOrientation = ORIENTATION_180
                     }
+
                     ExifInterface.ORIENTATION_ROTATE_270 -> {
                         exifOrientation = ORIENTATION_270
                     }
+
                     else -> {
                         Log.w(TAG, "Unsupported EXIF orientation: $orientationAttr")
                     }
@@ -1776,1388 +2057,1295 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         return exifOrientation
     }
 
-    private class Tile {
-        var sRect: Rect? = null
-        var sampleSize = 0
-        var bitmap: Bitmap? = null
-        var loading = false
-        var visible = false
 
-        // Volatile fields instantiated once then updated before use to reduce GC.
-        var vRect: Rect? = null
-        var fileSRect: Rect? = null
+    /**
+     * Set scale, center and orientation from saved state.
+     */
+    private fun restoreState(state: ImageViewState) {
+        if (VALID_ORIENTATIONS.contains(state.orientation)) {
+            this.orientation = state.orientation
+            this.pendingScale = state.scale
+            this.sPendingCenter = state.center
+            invalidate()
+        }
     }
 
-    private class Anim {
-        var scaleStart = 0f // Scale at start of anim
-        var scaleEnd = 0f // Scale at end of anim (target)
-        var sCenterStart: PointF? = null // Source center point at start
-        var sCenterEnd: PointF? = null // Source center point at end, adjusted for pan limits
-        var sCenterEndRequested: PointF? = null // Source center point that was requested, without adjustment
-        var vFocusStart: PointF? = null // View point that was double tapped
-        var vFocusEnd: PointF? = null // Where the view focal point should be moved to during the anim
-        var duration: Long = 500 // How long the anim takes
-        var interruptible = true // Whether the anim can be interrupted by a touch
-        var easing = EASE_IN_OUT_QUAD // Easing style
-        var origin = ORIGIN_ANIM // Animation origin (API, double tap or fling)
-        var time = System.currentTimeMillis() // Start time
-        var listener: OnAnimationEventListener? = null // Event listener
+    /**
+     * By default, the View automatically calculates the optimal tile size. Set this to override this, and force an upper limit to the dimensions of the generated tiles. Passing [TILE_SIZE_AUTO] will re-enable the default behavior.
+     *
+     * @param maxPixels Maximum tile size X and Y in pixels.
+     */
+    fun setMaxTileSize(maxPixels: Int) {
+        this.maxTileWidth = maxPixels
+        this.maxTileHeight = maxPixels
     }
 
-    private class ScaleAndTranslate(var scale: Float, val vTranslate: PointF)
+    /**
+     * By default, the View automatically calculates the optimal tile size. Set this to override this, and force an upper limit to the dimensions of the generated tiles. Passing [TILE_SIZE_AUTO] will re-enable the default behavior.
+     *
+     * @param maxPixelsX Maximum tile width.
+     * @param maxPixelsY Maximum tile height.
+     */
+    fun setMaxTileSize(maxPixelsX: Int, maxPixelsY: Int) {
+        this.maxTileWidth = maxPixelsX
+        this.maxTileHeight = maxPixelsY
+    }
 
-        /**
-         * Set scale, center and orientation from saved state.
-         */
-        private fun restoreState(state: ImageViewState) {
-            if (VALID_ORIENTATIONS.contains(state.orientation)) {
-                this.orientation = state.orientation
-                this.pendingScale = state.scale
-                this.sPendingCenter = state.center
-                invalidate()
-            }
+    /**
+     * Use canvas max bitmap width and height instead of the default 2048, to avoid redundant tiling.
+     */
+    private fun getMaxBitmapDimensions(canvas: Canvas): Point {
+        return Point(
+            min(canvas.maximumBitmapWidth, maxTileWidth),
+            min(canvas.maximumBitmapHeight, maxTileHeight)
+        )
+    }
+
+    /**
+     * Get source width taking rotation into account.
+     */
+    @Suppress("SuspiciousNameCombination")
+    private fun sWidth(): Int {
+        val rotation = getRequiredRotation()
+        return if (rotation == 90 || rotation == 270) {
+            sHeight
+        } else {
+            sWidth
         }
+    }
 
-        /**
-         * By default, the View automatically calculates the optimal tile size. Set this to override this, and force an upper limit to the dimensions of the generated tiles. Passing [TILE_SIZE_AUTO] will re-enable the default behavior.
-         *
-         * @param maxPixels Maximum tile size X and Y in pixels.
-         */
-        fun setMaxTileSize(maxPixels: Int) {
-            this.maxTileWidth = maxPixels
-            this.maxTileHeight = maxPixels
+    /**
+     * Get source height taking rotation into account.
+     */
+    @Suppress("SuspiciousNameCombination")
+    private fun sHeight(): Int {
+        val rotation = getRequiredRotation()
+        return if (rotation == 90 || rotation == 270) {
+            sWidth
+        } else {
+            sHeight
         }
+    }
 
-        /**
-         * By default, the View automatically calculates the optimal tile size. Set this to override this, and force an upper limit to the dimensions of the generated tiles. Passing [TILE_SIZE_AUTO] will re-enable the default behavior.
-         *
-         * @param maxPixelsX Maximum tile width.
-         * @param maxPixelsY Maximum tile height.
-         */
-        fun setMaxTileSize(maxPixelsX: Int, maxPixelsY: Int) {
-            this.maxTileWidth = maxPixelsX
-            this.maxTileHeight = maxPixelsY
-        }
-
-        /**
-         * Use canvas max bitmap width and height instead of the default 2048, to avoid redundant tiling.
-         */
-        private fun getMaxBitmapDimensions(canvas: Canvas): Point {
-            return Point(min(canvas.maximumBitmapWidth, maxTileWidth), min(canvas.maximumBitmapHeight, maxTileHeight))
-        }
-
-        /**
-         * Get source width taking rotation into account.
-         */
-        @Suppress("SuspiciousNameCombination")
-        private fun sWidth(): Int {
-            val rotation = getRequiredRotation()
-            return if (rotation == 90 || rotation == 270) {
-                sHeight
-            } else {
-                sWidth
-            }
-        }
-
-        /**
-         * Get source height taking rotation into account.
-         */
-        @Suppress("SuspiciousNameCombination")
-        private fun sHeight(): Int {
-            val rotation = getRequiredRotation()
-            return if (rotation == 90 || rotation == 270) {
-                sWidth
-            } else {
-                sHeight
-            }
-        }
-
-        /**
-         * Converts source rectangle from tile, which treats the image file as if it were in the correct orientation already,
-         * to the rectangle of the image that needs to be loaded.
-         */
-        @Suppress("SuspiciousNameCombination")
-        @AnyThread
-        private fun fileSRect(sRect: Rect, target: Rect) {
-            when (getRequiredRotation()) {
-                0 -> target.set(sRect)
-                90 -> target.set(sRect.top, sHeight - sRect.right, sRect.bottom, sHeight - sRect.left)
-                180 -> target.set(sWidth - sRect.right, sHeight - sRect.bottom, sWidth - sRect.left, sHeight - sRect.top)
-                else -> target.set(sWidth - sRect.bottom, sRect.left, sWidth - sRect.top, sRect.right)
-            }
-        }
-
-        /**
-         * Determines the rotation to be applied to tiles, based on EXIF orientation or chosen setting.
-         */
-        @AnyThread
-        private fun getRequiredRotation(): Int {
-            return if (orientation == ORIENTATION_USE_EXIF) {
-                sOrientation
-            } else {
-                orientation
-            }
-        }
-
-        /**
-         * Pythagoras distance between two points.
-         */
-        private fun distance(x0: Float, x1: Float, y0: Float, y1: Float): Float {
-            val x = x0 - x1
-            val y = y0 - y1
-            return sqrt((x * x + y * y).toDouble()).toFloat()
-        }
-
-        /**
-         * Releases all resources the view is using and resets the state, nulling any fields that use significant memory.
-         * After you have called this method, the view can be re-used by setting a new image. Settings are remembered
-         * but state (scale and center) is forgotten. You can restore these yourself if required.
-         */
-        fun recycle() {
-            reset(true)
-            bitmapPaint = null
-            debugTextPaint = null
-            debugLinePaint = null
-            tileBgPaint = null
-        }
-
-        /**
-         * Convert screen to source x coordinate.
-         */
-        private fun viewToSourceX(vx: Float): Float {
-            return if (vTranslate == null) Float.NaN else (vx - vTranslate!!.x) / scale
-        }
-
-        /**
-         * Convert screen to source y coordinate.
-         */
-        private fun viewToSourceY(vy: Float): Float {
-            return if (vTranslate == null) Float.NaN else (vy - vTranslate!!.y) / scale
-        }
-
-        /**
-         * Converts a rectangle within the view to the corresponding rectangle from the source file, taking
-         * into account the current scale, translation, orientation and clipped region. This can be used
-         * to decode a bitmap from the source file.
-         *
-         * This method will only work when the image has fully initialized, after [isReady] returns
-         * true. It is not guaranteed to work with preloaded bitmaps.
-         *
-         * The result is written to the fRect argument. Re-use a single instance for efficiency.
-         * @param vRect rectangle representing the view area to interpret.
-         * @param fRect rectangle instance to which the result will be written. Re-use for efficiency.
-         */
-        fun viewToFileRect(vRect: Rect, fRect: Rect) {
-            if (vTranslate == null || !readySent) {
-                return
-            }
-            fRect.set(
-                viewToSourceX(vRect.left.toFloat()).toInt(),
-                      viewToSourceY(vRect.top.toFloat()).toInt(),
-                      viewToSourceX(vRect.right.toFloat()).toInt(),
-                      viewToSourceY(vRect.bottom.toFloat()).toInt()
+    /**
+     * Converts source rectangle from tile, which treats the image file as if it were in the correct orientation already,
+     * to the rectangle of the image that needs to be loaded.
+     */
+    @Suppress("SuspiciousNameCombination")
+    @AnyThread
+    private fun fileSRect(sRect: Rect, target: Rect) {
+        when (getRequiredRotation()) {
+            0 -> target.set(sRect)
+            90 -> target.set(sRect.top, sHeight - sRect.right, sRect.bottom, sHeight - sRect.left)
+            180 -> target.set(
+                sWidth - sRect.right,
+                sHeight - sRect.bottom,
+                sWidth - sRect.left,
+                sHeight - sRect.top
             )
-            fileSRect(fRect, fRect)
-            fRect.set(
-                max(0, fRect.left),
-                      max(0, fRect.top),
-                      min(sWidth, fRect.right),
-                      min(sHeight, fRect.bottom)
+
+            else -> target.set(sWidth - sRect.bottom, sRect.left, sWidth - sRect.top, sRect.right)
+        }
+    }
+
+    /**
+     * Determines the rotation to be applied to tiles, based on EXIF orientation or chosen setting.
+     */
+    @AnyThread
+    private fun getRequiredRotation(): Int {
+        return if (orientation == ORIENTATION_USE_EXIF) {
+            sOrientation
+        } else {
+            orientation
+        }
+    }
+
+    /**
+     * Pythagoras distance between two points.
+     */
+    private fun distance(x0: Float, x1: Float, y0: Float, y1: Float): Float {
+        val x = x0 - x1
+        val y = y0 - y1
+        return sqrt((x * x + y * y).toDouble()).toFloat()
+    }
+
+    /**
+     * Releases all resources the view is using and resets the state, nulling any fields that use significant memory.
+     * After you have called this method, the view can be re-used by setting a new image. Settings are remembered
+     * but state (scale and center) is forgotten. You can restore these yourself if required.
+     */
+    fun recycle() {
+        reset(true)
+        bitmapPaint = null
+        debugTextPaint = null
+        debugLinePaint = null
+        tileBgPaint = null
+    }
+
+    /**
+     * Convert screen to source x coordinate.
+     */
+    private fun viewToSourceX(vx: Float): Float {
+        return if (vTranslate == null) Float.NaN else (vx - vTranslate!!.x) / scale
+    }
+
+    /**
+     * Convert screen to source y coordinate.
+     */
+    private fun viewToSourceY(vy: Float): Float {
+        return if (vTranslate == null) Float.NaN else (vy - vTranslate!!.y) / scale
+    }
+
+    /**
+     * Converts a rectangle within the view to the corresponding rectangle from the source file, taking
+     * into account the current scale, translation, orientation and clipped region. This can be used
+     * to decode a bitmap from the source file.
+     *
+     * This method will only work when the image has fully initialized, after [isReady] returns
+     * true. It is not guaranteed to work with preloaded bitmaps.
+     *
+     * The result is written to the fRect argument. Re-use a single instance for efficiency.
+     * @param vRect rectangle representing the view area to interpret.
+     * @param fRect rectangle instance to which the result will be written. Re-use for efficiency.
+     */
+    fun viewToFileRect(vRect: Rect, fRect: Rect) {
+        if (vTranslate == null || !readySent) {
+            return
+        }
+        fRect.set(
+            viewToSourceX(vRect.left.toFloat()).toInt(),
+            viewToSourceY(vRect.top.toFloat()).toInt(),
+            viewToSourceX(vRect.right.toFloat()).toInt(),
+            viewToSourceY(vRect.bottom.toFloat()).toInt()
+        )
+        fileSRect(fRect, fRect)
+        fRect.set(
+            max(0, fRect.left),
+            max(0, fRect.top),
+            min(sWidth, fRect.right),
+            min(sHeight, fRect.bottom)
+        )
+        sRegion?.let { fRect.offset(it.left, it.top) }
+    }
+
+    /**
+     * Find the area of the source file that is currently visible on screen, taking into account the
+     * current scale, translation, orientation and clipped region. This is a convenience method; see
+     * [viewToFileRect].
+     * @param fRect rectangle instance to which the result will be written. Re-use for efficiency.
+     */
+    fun visibleFileRect(fRect: Rect) {
+        if (vTranslate == null || !readySent) {
+            return
+        }
+        fRect.set(0, 0, width, height)
+        viewToFileRect(fRect, fRect)
+    }
+
+    /**
+     * Convert screen coordinate to source coordinate.
+     * @param vxy view X/Y coordinate.
+     * @return a coordinate representing the corresponding source coordinate.
+     */
+    fun viewToSourceCoord(vxy: PointF): PointF? {
+        return viewToSourceCoord(vxy.x, vxy.y, PointF())
+    }
+
+    /**
+     * Convert screen coordinate to source coordinate.
+     * @param vx view X coordinate.
+     * @param vy view Y coordinate.
+     * @return a coordinate representing the corresponding source coordinate.
+     */
+    fun viewToSourceCoord(vx: Float, vy: Float): PointF? {
+        return viewToSourceCoord(vx, vy, PointF())
+    }
+
+    /**
+     * Convert screen coordinate to source coordinate.
+     * @param vxy view coordinates to convert.
+     * @param sTarget target object for result. The same instance is also returned.
+     * @return source coordinates. This is the same instance passed to the sTarget param.
+     */
+    fun viewToSourceCoord(vxy: PointF, sTarget: PointF): PointF? {
+        return viewToSourceCoord(vxy.x, vxy.y, sTarget)
+    }
+
+    /**
+     * Convert screen coordinate to source coordinate.
+     * @param vx view X coordinate.
+     * @param vy view Y coordinate.
+     * @param sTarget target object for result. The same instance is also returned.
+     * @return source coordinates. This is the same instance passed to the sTarget param.
+     */
+    fun viewToSourceCoord(vx: Float, vy: Float, sTarget: PointF): PointF? {
+        if (vTranslate == null) {
+            return null
+        }
+        sTarget.set(viewToSourceX(vx), viewToSourceY(vy))
+        return sTarget
+    }
+
+    /**
+     * Convert source to view x coordinate.
+     */
+    private fun sourceToViewX(sx: Float): Float {
+        return if (vTranslate == null) Float.NaN else sx * scale + vTranslate!!.x
+    }
+
+    /**
+     * Convert source to view y coordinate.
+     */
+    private fun sourceToViewY(sy: Float): Float {
+        return if (vTranslate == null) Float.NaN else sy * scale + vTranslate!!.y
+    }
+
+    /**
+     * Convert source coordinate to view coordinate.
+     * @param sxy source coordinates to convert.
+     * @return view coordinates.
+     */
+    fun sourceToViewCoord(sxy: PointF): PointF? {
+        return sourceToViewCoord(sxy.x, sxy.y, PointF())
+    }
+
+    /**
+     * Convert source coordinate to view coordinate.
+     * @param sx source X coordinate.
+     * @param sy source Y coordinate.
+     * @return view coordinates.
+     */
+    fun sourceToViewCoord(sx: Float, sy: Float): PointF? {
+        return sourceToViewCoord(sx, sy, PointF())
+    }
+
+    /**
+     * Convert source coordinate to view coordinate.
+     * @param sxy source coordinates to convert.
+     * @param vTarget target object for result. The same instance is also returned.
+     * @return view coordinates. This is the same instance passed to the vTarget param.
+     */
+    fun sourceToViewCoord(sxy: PointF, vTarget: PointF): PointF? {
+        return sourceToViewCoord(sxy.x, sxy.y, vTarget)
+    }
+
+    /**
+     * Convert source coordinate to view coordinate.
+     * @param sx source X coordinate.
+     * @param sy source Y coordinate.
+     * @param vTarget target object for result. The same instance is also returned.
+     * @return view coordinates. This is the same instance passed to the vTarget param.
+     */
+    fun sourceToViewCoord(sx: Float, sy: Float, vTarget: PointF): PointF? {
+        if (vTranslate == null) {
+            return null
+        }
+        vTarget.set(sourceToViewX(sx), sourceToViewY(sy))
+        return vTarget
+    }
+
+    /**
+     * Convert source rect to screen rect, integer values.
+     */
+    private fun sourceToViewRect(sRect: Rect, vTarget: Rect) {
+        vTarget.set(
+            sourceToViewX(sRect.left.toFloat()).toInt(),
+            sourceToViewY(sRect.top.toFloat()).toInt(),
+            sourceToViewX(sRect.right.toFloat()).toInt(),
+            sourceToViewY(sRect.bottom.toFloat()).toInt()
+        )
+    }
+
+    /**
+     * Get the translation required to place a given source coordinate at the center of the screen, with the center
+     * adjusted for asymmetric padding. Accepts the desired scale as an argument, so this is independent of current
+     * translate and scale. The result is fitted to bounds, putting the image point as near to the screen center as permitted.
+     */
+    private fun vTranslateForSCenter(sCenterX: Float, sCenterY: Float, scale: Float): PointF {
+        val vxCenter = paddingLeft + (width - paddingRight - paddingLeft) / 2
+        val vyCenter = paddingTop + (height - paddingBottom - paddingTop) / 2
+        if (satTemp == null) {
+            satTemp = ScaleAndTranslate(0f, PointF(0f, 0f))
+        }
+        satTemp!!.scale = scale
+        satTemp!!.vTranslate.set(vxCenter - sCenterX * scale, vyCenter - sCenterY * scale)
+        fitToBounds(true, satTemp!!)
+        return satTemp!!.vTranslate
+    }
+
+    /**
+     * Given a requested source center and scale, calculate what the actual center will have to be to keep the image in
+     * pan limits, keeping the requested center as near to the middle of the screen as allowed.
+     */
+    private fun limitedSCenter(
+        sCenterX: Float,
+        sCenterY: Float,
+        scale: Float,
+        sTarget: PointF
+    ): PointF {
+        val vTranslate = vTranslateForSCenter(sCenterX, sCenterY, scale)
+        val vxCenter = paddingLeft + (width - paddingRight - paddingLeft) / 2
+        val vyCenter = paddingTop + (height - paddingBottom - paddingTop) / 2
+        val sx = (vxCenter - vTranslate.x) / scale
+        val sy = (vyCenter - vTranslate.y) / scale
+        sTarget.set(sx, sy)
+        return sTarget
+    }
+
+    /**
+     * Returns the minimum allowed scale.
+     */
+    private fun minScale(): Float {
+        val vPadding = paddingBottom + paddingTop
+        val hPadding = paddingLeft + paddingRight
+        return when (minimumScaleType) {
+            SCALE_TYPE_CENTER_CROP, SCALE_TYPE_START -> max(
+                (width - hPadding) / sWidth().toFloat(),
+                (height - vPadding) / sHeight().toFloat()
             )
-            sRegion?.let { fRect.offset(it.left, it.top) }
-        }
 
-        /**
-         * Find the area of the source file that is currently visible on screen, taking into account the
-         * current scale, translation, orientation and clipped region. This is a convenience method; see
-         * [viewToFileRect].
-         * @param fRect rectangle instance to which the result will be written. Re-use for efficiency.
-         */
-        fun visibleFileRect(fRect: Rect) {
-            if (vTranslate == null || !readySent) {
-                return
-            }
-            fRect.set(0, 0, width, height)
-            viewToFileRect(fRect, fRect)
-        }
-
-        /**
-         * Convert screen coordinate to source coordinate.
-         * @param vxy view X/Y coordinate.
-         * @return a coordinate representing the corresponding source coordinate.
-         */
-        fun viewToSourceCoord(vxy: PointF): PointF? {
-            return viewToSourceCoord(vxy.x, vxy.y, PointF())
-        }
-
-        /**
-         * Convert screen coordinate to source coordinate.
-         * @param vx view X coordinate.
-         * @param vy view Y coordinate.
-         * @return a coordinate representing the corresponding source coordinate.
-         */
-        fun viewToSourceCoord(vx: Float, vy: Float): PointF? {
-            return viewToSourceCoord(vx, vy, PointF())
-        }
-
-        /**
-         * Convert screen coordinate to source coordinate.
-         * @param vxy view coordinates to convert.
-         * @param sTarget target object for result. The same instance is also returned.
-         * @return source coordinates. This is the same instance passed to the sTarget param.
-         */
-        fun viewToSourceCoord(vxy: PointF, sTarget: PointF): PointF? {
-            return viewToSourceCoord(vxy.x, vxy.y, sTarget)
-        }
-
-        /**
-         * Convert screen coordinate to source coordinate.
-         * @param vx view X coordinate.
-         * @param vy view Y coordinate.
-         * @param sTarget target object for result. The same instance is also returned.
-         * @return source coordinates. This is the same instance passed to the sTarget param.
-         */
-        fun viewToSourceCoord(vx: Float, vy: Float, sTarget: PointF): PointF? {
-            if (vTranslate == null) {
-                return null
-            }
-            sTarget.set(viewToSourceX(vx), viewToSourceY(vy))
-            return sTarget
-        }
-
-        /**
-         * Convert source to view x coordinate.
-         */
-        private fun sourceToViewX(sx: Float): Float {
-            return if (vTranslate == null) Float.NaN else sx * scale + vTranslate!!.x
-        }
-
-        /**
-         * Convert source to view y coordinate.
-         */
-        private fun sourceToViewY(sy: Float): Float {
-            return if (vTranslate == null) Float.NaN else sy * scale + vTranslate!!.y
-        }
-
-        /**
-         * Convert source coordinate to view coordinate.
-         * @param sxy source coordinates to convert.
-         * @return view coordinates.
-         */
-        fun sourceToViewCoord(sxy: PointF): PointF? {
-            return sourceToViewCoord(sxy.x, sxy.y, PointF())
-        }
-
-        /**
-         * Convert source coordinate to view coordinate.
-         * @param sx source X coordinate.
-         * @param sy source Y coordinate.
-         * @return view coordinates.
-         */
-        fun sourceToViewCoord(sx: Float, sy: Float): PointF? {
-            return sourceToViewCoord(sx, sy, PointF())
-        }
-
-        /**
-         * Convert source coordinate to view coordinate.
-         * @param sxy source coordinates to convert.
-         * @param vTarget target object for result. The same instance is also returned.
-         * @return view coordinates. This is the same instance passed to the vTarget param.
-         */
-        fun sourceToViewCoord(sxy: PointF, vTarget: PointF): PointF? {
-            return sourceToViewCoord(sxy.x, sxy.y, vTarget)
-        }
-
-        /**
-         * Convert source coordinate to view coordinate.
-         * @param sx source X coordinate.
-         * @param sy source Y coordinate.
-         * @param vTarget target object for result. The same instance is also returned.
-         * @return view coordinates. This is the same instance passed to the vTarget param.
-         */
-        fun sourceToViewCoord(sx: Float, sy: Float, vTarget: PointF): PointF? {
-            if (vTranslate == null) {
-                return null
-            }
-            vTarget.set(sourceToViewX(sx), sourceToViewY(sy))
-            return vTarget
-        }
-
-        /**
-         * Convert source rect to screen rect, integer values.
-         */
-        private fun sourceToViewRect(sRect: Rect, vTarget: Rect) {
-            vTarget.set(
-                sourceToViewX(sRect.left.toFloat()).toInt(),
-                        sourceToViewY(sRect.top.toFloat()).toInt(),
-                        sourceToViewX(sRect.right.toFloat()).toInt(),
-                        sourceToViewY(sRect.bottom.toFloat()).toInt()
+            SCALE_TYPE_CUSTOM if minScale > 0 -> minScale
+            else -> min(
+                (width - hPadding) / sWidth().toFloat(),
+                (height - vPadding) / sHeight().toFloat()
             )
         }
+    }
 
-        /**
-         * Get the translation required to place a given source coordinate at the center of the screen, with the center
-         * adjusted for asymmetric padding. Accepts the desired scale as an argument, so this is independent of current
-         * translate and scale. The result is fitted to bounds, putting the image point as near to the screen center as permitted.
-         */
-        private fun vTranslateForSCenter(sCenterX: Float, sCenterY: Float, scale: Float): PointF {
-            val vxCenter = paddingLeft + (width - paddingRight - paddingLeft) / 2
-            val vyCenter = paddingTop + (height - paddingBottom - paddingTop) / 2
-            if (satTemp == null) {
-                satTemp = ScaleAndTranslate(0f, PointF(0f, 0f))
-            }
-            satTemp!!.scale = scale
-            satTemp!!.vTranslate.set(vxCenter - sCenterX * scale, vyCenter - sCenterY * scale)
-            fitToBounds(true, satTemp!!)
-            return satTemp!!.vTranslate
+    /**
+     * Adjust a requested scale to be within the allowed limits.
+     */
+    private fun limitedScale(targetScale: Float): Float {
+        var mutableTargetScale = max(minScale(), targetScale)
+        mutableTargetScale = min(maxScale, mutableTargetScale)
+        return mutableTargetScale
+    }
+
+    /**
+     * Apply a selected type of easing.
+     * @param type Easing type, from static fields
+     * @param time Elapsed time
+     * @param from Start value
+     * @param change Target value
+     * @param duration Anm duration
+     * @return Current value
+     */
+    private fun ease(type: Int, time: Long, from: Float, change: Float, duration: Long): Float {
+        return when (type) {
+            EASE_IN_OUT_QUAD -> easeInOutQuad(time, from, change, duration)
+            EASE_OUT_QUAD -> easeOutQuad(time, from, change, duration)
+            else -> throw IllegalStateException("Unexpected easing type: $type")
+        }
+    }
+
+    /**
+     * Quadratic easing for fling. With thanks to Robert Penner - http://gizma.com/easing/
+     * @param time Elapsed time
+     * @param from Start value
+     * @param change Target value
+     * @param duration Anm duration
+     * @return Current value
+     */
+    private fun easeOutQuad(time: Long, from: Float, change: Float, duration: Long): Float {
+        val progress = time.toFloat() / duration.toFloat()
+        return -change * progress * (progress - 2) + from
+    }
+
+    /**
+     * Quadratic easing for scale and center animations. With thanks to Robert Penner - http://gizma.com/easing/
+     * @param time Elapsed time
+     * @param from Start value
+     * @param change Target value
+     * @param duration Anm duration
+     * @return Current value
+     */
+    private fun easeInOutQuad(time: Long, from: Float, change: Float, duration: Long): Float {
+        var timeF = time / (duration / 2f)
+        return if (timeF < 1) {
+            change / 2f * timeF * timeF + from
+        } else {
+            timeF--
+            -change / 2f * (timeF * (timeF - 2) - 1) + from
+        }
+    }
+
+    /**
+     * Debug logger
+     */
+    @AnyThread
+    private fun debug(message: String, vararg args: Any) {
+        if (debug) {
+            Log.d(TAG, String.format(message, *args))
+        }
+    }
+
+    /**
+     * For debug overlays. Scale pixel value according to screen density.
+     */
+    private fun px(px: Int): Int {
+        return (density * px).toInt()
+    }
+
+    /**
+     * Swap the default region decoder implementation for one of your own. You must do this before setting the image file or
+     * asset, and you cannot use a custom decoder when using layout XML to set an asset name. Your class must have a
+     * public default constructor.
+     * @param regionDecoderClass The [ImageRegionDecoder] implementation to use.
+     */
+    fun setRegionDecoderClass(regionDecoderClass: Class<out ImageRegionDecoder>) {
+        this.regionDecoderFactory = CompatDecoderFactory(regionDecoderClass)
+    }
+
+    /**
+     * Swap the default region decoder implementation for one of your own. You must do this before setting the image file or
+     * asset, and you cannot use a custom decoder when using layout XML to set an asset name.
+     * @param regionDecoderFactory The [DecoderFactory] implementation that produces [ImageRegionDecoder]
+     * instances.
+     */
+    fun setRegionDecoderFactory(regionDecoderFactory: DecoderFactory<out ImageRegionDecoder>) {
+        this.regionDecoderFactory = regionDecoderFactory
+    }
+
+    /**
+     * Swap the default bitmap decoder implementation for one of your own. You must do this before setting the image file or
+     * asset, and you cannot use a custom decoder when using layout XML to set an asset name. Your class must have a
+     * public default constructor.
+     * @param bitmapDecoderClass The [SSIVImageDecoder] implementation to use.
+     */
+    fun setBitmapDecoderClass(bitmapDecoderClass: Class<out SSIVImageDecoder>) {
+        this.bitmapDecoderFactory = CompatDecoderFactory(bitmapDecoderClass)
+    }
+
+    /**
+     * Swap the default bitmap decoder implementation for one of your own. You must do this before setting the image file or
+     * asset, and you cannot use a custom decoder when using layout XML to set an asset name.
+     * @param bitmapDecoderFactory The [DecoderFactory] implementation that produces [SSIVImageDecoder] instances.
+     */
+    fun setBitmapDecoderFactory(bitmapDecoderFactory: DecoderFactory<out SSIVImageDecoder>) {
+        this.bitmapDecoderFactory = bitmapDecoderFactory
+    }
+
+    /**
+     * Calculate how much further the image can be panned in each direction. The results are set on
+     * the supplied [RectF] and expressed as screen pixels. For example, if the image cannot be
+     * panned any further towards the left, the value of [RectF.left] will be set to 0.
+     * @param vTarget target object for results. Re-use for efficiency.
+     */
+    fun getPanRemaining(vTarget: RectF) {
+        if (!isReady) {
+            return
         }
 
-        /**
-         * Given a requested source center and scale, calculate what the actual center will have to be to keep the image in
-         * pan limits, keeping the requested center as near to the middle of the screen as allowed.
-         */
-        private fun limitedSCenter(sCenterX: Float, sCenterY: Float, scale: Float, sTarget: PointF): PointF {
-            val vTranslate = vTranslateForSCenter(sCenterX, sCenterY, scale)
-            val vxCenter = paddingLeft + (width - paddingRight - paddingLeft) / 2
-            val vyCenter = paddingTop + (height - paddingBottom - paddingTop) / 2
-            val sx = (vxCenter - vTranslate.x) / scale
-            val sy = (vyCenter - vTranslate.y) / scale
-            sTarget.set(sx, sy)
-            return sTarget
-        }
+        val scaleWidth = scale * sWidth()
+        val scaleHeight = scale * sHeight()
 
-        /**
-         * Returns the minimum allowed scale.
-         */
-        private fun minScale(): Float {
-            val vPadding = paddingBottom + paddingTop
-            val hPadding = paddingLeft + paddingRight
-            return when (minimumScaleType) {
-                SCALE_TYPE_CENTER_CROP, SCALE_TYPE_START -> max((width - hPadding) / sWidth().toFloat(), (height - vPadding) / sHeight().toFloat())
-                SCALE_TYPE_CUSTOM if minScale > 0 -> minScale
-                else -> min((width - hPadding) / sWidth().toFloat(), (height - vPadding) / sHeight().toFloat())
-            }
-        }
-
-        /**
-         * Adjust a requested scale to be within the allowed limits.
-         */
-        private fun limitedScale(targetScale: Float): Float {
-            var mutableTargetScale = max(minScale(), targetScale)
-            mutableTargetScale = min(maxScale, mutableTargetScale)
-            return mutableTargetScale
-        }
-
-        /**
-         * Apply a selected type of easing.
-         * @param type Easing type, from static fields
-         * @param time Elapsed time
-         * @param from Start value
-         * @param change Target value
-         * @param duration Anm duration
-         * @return Current value
-         */
-        private fun ease(type: Int, time: Long, from: Float, change: Float, duration: Long): Float {
-            return when (type) {
-                EASE_IN_OUT_QUAD -> easeInOutQuad(time, from, change, duration)
-                EASE_OUT_QUAD -> easeOutQuad(time, from, change, duration)
-                else -> throw IllegalStateException("Unexpected easing type: $type")
-            }
-        }
-
-        /**
-         * Quadratic easing for fling. With thanks to Robert Penner - http://gizma.com/easing/
-         * @param time Elapsed time
-         * @param from Start value
-         * @param change Target value
-         * @param duration Anm duration
-         * @return Current value
-         */
-        private fun easeOutQuad(time: Long, from: Float, change: Float, duration: Long): Float {
-            val progress = time.toFloat() / duration.toFloat()
-            return -change * progress * (progress - 2) + from
-        }
-
-        /**
-         * Quadratic easing for scale and center animations. With thanks to Robert Penner - http://gizma.com/easing/
-         * @param time Elapsed time
-         * @param from Start value
-         * @param change Target value
-         * @param duration Anm duration
-         * @return Current value
-         */
-        private fun easeInOutQuad(time: Long, from: Float, change: Float, duration: Long): Float {
-            var timeF = time / (duration / 2f)
-            return if (timeF < 1) {
-                change / 2f * timeF * timeF + from
-            } else {
-                timeF--
-                -change / 2f * (timeF * (timeF - 2) - 1) + from
-            }
-        }
-
-        /**
-         * Debug logger
-         */
-        @AnyThread
-        private fun debug(message: String, vararg args: Any) {
-            if (debug) {
-                Log.d(TAG, String.format(message, *args))
-            }
-        }
-
-        /**
-         * For debug overlays. Scale pixel value according to screen density.
-         */
-        private fun px(px: Int): Int {
-            return (density * px).toInt()
-        }
-
-        /**
-         * Swap the default region decoder implementation for one of your own. You must do this before setting the image file or
-         * asset, and you cannot use a custom decoder when using layout XML to set an asset name. Your class must have a
-         * public default constructor.
-         * @param regionDecoderClass The [ImageRegionDecoder] implementation to use.
-         */
-        fun setRegionDecoderClass(regionDecoderClass: Class<out ImageRegionDecoder>) {
-            this.regionDecoderFactory = CompatDecoderFactory(regionDecoderClass)
-        }
-
-        /**
-         * Swap the default region decoder implementation for one of your own. You must do this before setting the image file or
-         * asset, and you cannot use a custom decoder when using layout XML to set an asset name.
-         * @param regionDecoderFactory The [DecoderFactory] implementation that produces [ImageRegionDecoder]
-         * instances.
-         */
-        fun setRegionDecoderFactory(regionDecoderFactory: DecoderFactory<out ImageRegionDecoder>) {
-            this.regionDecoderFactory = regionDecoderFactory
-        }
-
-        /**
-         * Swap the default bitmap decoder implementation for one of your own. You must do this before setting the image file or
-         * asset, and you cannot use a custom decoder when using layout XML to set an asset name. Your class must have a
-         * public default constructor.
-         * @param bitmapDecoderClass The [SSIVImageDecoder] implementation to use.
-         */
-        fun setBitmapDecoderClass(bitmapDecoderClass: Class<out SSIVImageDecoder>) {
-            this.bitmapDecoderFactory = CompatDecoderFactory(bitmapDecoderClass)
-        }
-
-        /**
-         * Swap the default bitmap decoder implementation for one of your own. You must do this before setting the image file or
-         * asset, and you cannot use a custom decoder when using layout XML to set an asset name.
-         * @param bitmapDecoderFactory The [DecoderFactory] implementation that produces [SSIVImageDecoder] instances.
-         */
-        fun setBitmapDecoderFactory(bitmapDecoderFactory: DecoderFactory<out SSIVImageDecoder>) {
-            this.bitmapDecoderFactory = bitmapDecoderFactory
-        }
-
-        /**
-         * Calculate how much further the image can be panned in each direction. The results are set on
-         * the supplied [RectF] and expressed as screen pixels. For example, if the image cannot be
-         * panned any further towards the left, the value of [RectF.left] will be set to 0.
-         * @param vTarget target object for results. Re-use for efficiency.
-         */
-        fun getPanRemaining(vTarget: RectF) {
-            if (!isReady) {
-                return
+        when (panLimit) {
+            PAN_LIMIT_CENTER -> {
+                vTarget.top = max(0f, -(vTranslate!!.y - height / 2))
+                vTarget.left = max(0f, -(vTranslate!!.x - width / 2))
+                vTarget.bottom = max(0f, vTranslate!!.y - (height / 2 - scaleHeight))
+                vTarget.right = max(0f, vTranslate!!.x - (width / 2 - scaleWidth))
             }
 
-            val scaleWidth = scale * sWidth()
-            val scaleHeight = scale * sHeight()
+            PAN_LIMIT_OUTSIDE -> {
+                vTarget.top = max(0f, -(vTranslate!!.y - height))
+                vTarget.left = max(0f, -(vTranslate!!.x - width))
+                vTarget.bottom = max(0f, vTranslate!!.y + scaleHeight)
+                vTarget.right = max(0f, vTranslate!!.x + scaleWidth)
+            }
 
-            when (panLimit) {
-                PAN_LIMIT_CENTER -> {
-                    vTarget.top = max(0f, -(vTranslate!!.y - height / 2))
-                    vTarget.left = max(0f, -(vTranslate!!.x - width / 2))
-                    vTarget.bottom = max(0f, vTranslate!!.y - (height / 2 - scaleHeight))
-                    vTarget.right = max(0f, vTranslate!!.x - (width / 2 - scaleWidth))
-                }
-                PAN_LIMIT_OUTSIDE -> {
-                    vTarget.top = max(0f, -(vTranslate!!.y - height))
-                    vTarget.left = max(0f, -(vTranslate!!.x - width))
-                    vTarget.bottom = max(0f, vTranslate!!.y + scaleHeight)
-                    vTarget.right = max(0f, vTranslate!!.x + scaleWidth)
-                }
-                else -> {
-                    vTarget.top = max(0f, -vTranslate!!.y)
-                    vTarget.left = max(0f, -vTranslate!!.x)
-                    vTarget.bottom = max(0f, scaleHeight + vTranslate!!.y - height)
-                    vTarget.right = max(0f, scaleWidth + vTranslate!!.x - width)
-                }
+            else -> {
+                vTarget.top = max(0f, -vTranslate!!.y)
+                vTarget.left = max(0f, -vTranslate!!.x)
+                vTarget.bottom = max(0f, scaleHeight + vTranslate!!.y - height)
+                vTarget.right = max(0f, scaleWidth + vTranslate!!.x - width)
             }
         }
+    }
 
-        /**
-         * Set the pan limiting style. See static fields. Normally [PAN_LIMIT_INSIDE] is best, for image galleries.
-         * @param panLimit a pan limit constant. See static fields.
-         */
-        fun setPanLimit(panLimit: Int) {
-            require(VALID_PAN_LIMITS.contains(panLimit)) { "Invalid pan limit: $panLimit" }
-            this.panLimit = panLimit
-            if (isReady) {
-                fitToBounds(true)
-                invalidate()
-            }
+    /**
+     * Set the pan limiting style. See static fields. Normally [PAN_LIMIT_INSIDE] is best, for image galleries.
+     * @param panLimit a pan limit constant. See static fields.
+     */
+    fun setPanLimit(panLimit: Int) {
+        require(VALID_PAN_LIMITS.contains(panLimit)) { "Invalid pan limit: $panLimit" }
+        this.panLimit = panLimit
+        if (isReady) {
+            fitToBounds(true)
+            invalidate()
         }
+    }
 
-        /**
-         * Set the minimum scale type. See static fields. Normally [SCALE_TYPE_CENTER_INSIDE] is best, for image galleries.
-         * @param scaleType a scale type constant. See static fields.
-         */
-        fun setMinimumScaleType(scaleType: Int) {
-            require(VALID_SCALE_TYPES.contains(scaleType)) { "Invalid scale type: $scaleType" }
-            this.minimumScaleType = scaleType
-            if (isReady) {
-                fitToBounds(true)
-                invalidate()
-            }
+    /**
+     * Set the minimum scale type. See static fields. Normally [SCALE_TYPE_CENTER_INSIDE] is best, for image galleries.
+     * @param scaleType a scale type constant. See static fields.
+     */
+    fun setMinimumScaleType(scaleType: Int) {
+        require(VALID_SCALE_TYPES.contains(scaleType)) { "Invalid scale type: $scaleType" }
+        this.minimumScaleType = scaleType
+        if (isReady) {
+            fitToBounds(true)
+            invalidate()
         }
+    }
 
-        /**
-         * Set the maximum scale allowed. A value of 1 means 1:1 pixels at maximum scale. You may wish to set this according
-         * to screen density - on a retina screen, 1:1 may still be too small. Consider using [setMinimumDpi],
-         * which is density aware.
-         * @param maxScale maximum scale expressed as a source/view pixels ratio.
-         */
-        fun setMaxScale(maxScale: Float) {
-            this.maxScale = maxScale
+    /**
+     * Set the maximum scale allowed. A value of 1 means 1:1 pixels at maximum scale. You may wish to set this according
+     * to screen density - on a retina screen, 1:1 may still be too small. Consider using [setMinimumDpi],
+     * which is density aware.
+     * @param maxScale maximum scale expressed as a source/view pixels ratio.
+     */
+    fun setMaxScale(maxScale: Float) {
+        this.maxScale = maxScale
+    }
+
+    /**
+     * Set the minimum scale allowed. A value of 1 means 1:1 pixels at minimum scale. You may wish to set this according
+     * to screen density. Consider using [setMaximumDpi], which is density aware.
+     * @param minScale minimum scale expressed as a source/view pixels ratio.
+     */
+    fun setMinScale(minScale: Float) {
+        this.minScale = minScale
+    }
+
+    /**
+     * This is a screen density aware alternative to [setMaxScale]; it allows you to express the maximum
+     * allowed scale in terms of the minimum pixel density. This avoids the problem of 1:1 scale still being
+     * too small on a high density screen. A sensible starting point is 160 - the default used by this view.
+     * @param dpi Source image pixel density at maximum zoom.
+     */
+    fun setMinimumDpi(dpi: Int) {
+        val metrics = resources.displayMetrics
+        val averageDpi = (metrics.xdpi + metrics.ydpi) / 2
+        setMaxScale(averageDpi / dpi)
+    }
+
+    /**
+     * This is a screen density aware alternative to [setMinScale]; it allows you to express the minimum
+     * allowed scale in terms of the maximum pixel density.
+     * @param dpi Source image pixel density at minimum zoom.
+     */
+    fun setMaximumDpi(dpi: Int) {
+        val metrics = resources.displayMetrics
+        val averageDpi = (metrics.xdpi + metrics.ydpi) / 2
+        setMinScale(averageDpi / dpi)
+    }
+
+    /**
+     * Returns the maximum allowed scale.
+     * @return the maximum scale as a source/view pixels ratio.
+     */
+    fun getMaxScale(): Float {
+        return maxScale
+    }
+
+    /**
+     * Returns the minimum allowed scale.
+     * @return the minimum scale as a source/view pixels ratio.
+     */
+    fun getMinScale(): Float {
+        return minScale()
+    }
+
+    /**
+     * By default, image tiles are at least as high resolution as the screen. For a retina screen this may not be
+     * necessary, and may increase the likelihood of an OutOfMemoryError. This method sets a DPI at which higher
+     * resolution tiles should be loaded. Using a lower number will on average use less memory but result in a lower
+     * quality image. 160-240dpi will usually be enough. This should be called before setting the image source,
+     * because it affects which tiles get loaded. When using an untiled source image this method has no effect.
+     * @param minimumTileDpi Tile loading threshold.
+     */
+    fun setMinimumTileDpi(minimumTileDpi: Int) {
+        val metrics = resources.displayMetrics
+        val averageDpi = (metrics.xdpi + metrics.ydpi) / 2
+        this.minimumTileDpi = min(averageDpi, minimumTileDpi.toFloat()).toInt()
+        if (isReady) {
+            reset(false)
+            invalidate()
         }
+    }
 
-        /**
-         * Set the minimum scale allowed. A value of 1 means 1:1 pixels at minimum scale. You may wish to set this according
-         * to screen density. Consider using [setMaximumDpi], which is density aware.
-         * @param minScale minimum scale expressed as a source/view pixels ratio.
-         */
-        fun setMinScale(minScale: Float) {
-            this.minScale = minScale
-        }
-
-        /**
-         * This is a screen density aware alternative to [setMaxScale]; it allows you to express the maximum
-         * allowed scale in terms of the minimum pixel density. This avoids the problem of 1:1 scale still being
-         * too small on a high density screen. A sensible starting point is 160 - the default used by this view.
-         * @param dpi Source image pixel density at maximum zoom.
-         */
-        fun setMinimumDpi(dpi: Int) {
-            val metrics = resources.displayMetrics
-            val averageDpi = (metrics.xdpi + metrics.ydpi) / 2
-            setMaxScale(averageDpi / dpi)
-        }
-
-        /**
-         * This is a screen density aware alternative to [setMinScale]; it allows you to express the minimum
-         * allowed scale in terms of the maximum pixel density.
-         * @param dpi Source image pixel density at minimum zoom.
-         */
-        fun setMaximumDpi(dpi: Int) {
-            val metrics = resources.displayMetrics
-            val averageDpi = (metrics.xdpi + metrics.ydpi) / 2
-            setMinScale(averageDpi / dpi)
-        }
-
-        /**
-         * Returns the maximum allowed scale.
-         * @return the maximum scale as a source/view pixels ratio.
-         */
-        fun getMaxScale(): Float {
-            return maxScale
-        }
-
-        /**
-         * Returns the minimum allowed scale.
-         * @return the minimum scale as a source/view pixels ratio.
-         */
-        fun getMinScale(): Float {
-            return minScale()
-        }
-
-        /**
-         * By default, image tiles are at least as high resolution as the screen. For a retina screen this may not be
-         * necessary, and may increase the likelihood of an OutOfMemoryError. This method sets a DPI at which higher
-         * resolution tiles should be loaded. Using a lower number will on average use less memory but result in a lower
-         * quality image. 160-240dpi will usually be enough. This should be called before setting the image source,
-         * because it affects which tiles get loaded. When using an untiled source image this method has no effect.
-         * @param minimumTileDpi Tile loading threshold.
-         */
-        fun setMinimumTileDpi(minimumTileDpi: Int) {
-            val metrics = resources.displayMetrics
-            val averageDpi = (metrics.xdpi + metrics.ydpi) / 2
-            this.minimumTileDpi = min(averageDpi, minimumTileDpi.toFloat()).toInt()
-            if (isReady) {
-                reset(false)
-                invalidate()
-            }
-        }
-
-        /**
-         * Returns the source point at the center of the view.
-         * @return the source coordinates current at the center of the view.
-         */
-        val center: PointF?
+    /**
+     * Returns the source point at the center of the view.
+     * @return the source coordinates current at the center of the view.
+     */
+    val center: PointF?
         get() {
             val mX = width / 2
             val mY = height / 2
             return viewToSourceCoord(mX.toFloat(), mY.toFloat())
         }
 
-        /**
-         * Returns the current scale value.
-         * @return the current scale as a source/view pixels ratio.
-         */
-        fun getScale(): Float {
-            return scale
-        }
+    /**
+     * Returns the current scale value.
+     * @return the current scale as a source/view pixels ratio.
+     */
+    fun getScale(): Float {
+        return scale
+    }
 
-        /**
-         * Externally change the scale and translation of the source image. This may be used with getCenter() and getScale()
-         * to restore the scale and zoom after a screen rotate.
-         * @param scale New scale to set.
-         * @param sCenter New source image coordinate to center on the screen, subject to boundaries.
-         */
-        fun setScaleAndCenter(scale: Float, sCenter: PointF?) {
-            this.anim = null
-            this.pendingScale = scale
-            this.sPendingCenter = sCenter
-            this.sRequestedCenter = sCenter
-            invalidate()
-        }
+    /**
+     * Externally change the scale and translation of the source image. This may be used with getCenter() and getScale()
+     * to restore the scale and zoom after a screen rotate.
+     * @param scale New scale to set.
+     * @param sCenter New source image coordinate to center on the screen, subject to boundaries.
+     */
+    fun setScaleAndCenter(scale: Float, sCenter: PointF?) {
+        this.anim = null
+        this.pendingScale = scale
+        this.sPendingCenter = sCenter
+        this.sRequestedCenter = sCenter
+        invalidate()
+    }
 
-        /**
-         * Fully zoom out and return the image to the middle of the screen. This might be useful if you have a view pager
-         * and want images to be reset when the user has moved to another page.
-         */
-        fun resetScaleAndCenter() {
-            this.anim = null
-            this.pendingScale = limitedScale(0f)
-            this.sPendingCenter = if (isReady) {
-                PointF((sWidth() / 2).toFloat(), (sHeight() / 2).toFloat())
-            } else {
-                PointF(0f, 0f)
-            }
-            invalidate()
+    /**
+     * Fully zoom out and return the image to the middle of the screen. This might be useful if you have a view pager
+     * and want images to be reset when the user has moved to another page.
+     */
+    fun resetScaleAndCenter() {
+        this.anim = null
+        this.pendingScale = limitedScale(0f)
+        this.sPendingCenter = if (isReady) {
+            PointF((sWidth() / 2).toFloat(), (sHeight() / 2).toFloat())
+        } else {
+            PointF(0f, 0f)
         }
+        invalidate()
+    }
 
-        /**
-         * Call to find whether the view is initialized, has dimensions, and will display an image on
-         * the next draw. If a preview has been provided, it may be the preview that will be displayed
-         * and the full size image may still be loading. If no preview was provided, this is called once
-         * the base layer tiles of the full size image are loaded.
-         * @return true if the view is ready to display an image and accept touch gestures.
-         */
-        val isReady: Boolean
+    /**
+     * Call to find whether the view is initialized, has dimensions, and will display an image on
+     * the next draw. If a preview has been provided, it may be the preview that will be displayed
+     * and the full size image may still be loading. If no preview was provided, this is called once
+     * the base layer tiles of the full size image are loaded.
+     * @return true if the view is ready to display an image and accept touch gestures.
+     */
+    val isReady: Boolean
         get() = readySent
 
-        /**
-         * Called once when the view is initialized, has dimensions, and will display an image on the
-         * next draw. This is triggered at the same time as [OnImageEventListener.onReady] but
-         * allows a subclass to receive this event without using a listener.
-         */
-        protected open fun onReady() {}
+    /**
+     * Called once when the view is initialized, has dimensions, and will display an image on the
+     * next draw. This is triggered at the same time as [OnImageEventListener.onReady] but
+     * allows a subclass to receive this event without using a listener.
+     */
+    protected open fun onReady() {}
 
-        /**
-         * Call to find whether the main image (base layer tiles where relevant) have been loaded. Before
-         * this event the view is blank unless a preview was provided.
-         * @return true if the main image (not the preview) has been loaded and is ready to display.
-         */
-        val isImageLoaded: Boolean
+    /**
+     * Call to find whether the main image (base layer tiles where relevant) have been loaded. Before
+     * this event the view is blank unless a preview was provided.
+     * @return true if the main image (not the preview) has been loaded and is ready to display.
+     */
+    val isImageLoaded: Boolean
         get() = imageLoadedSent
 
-        /**
-         * Called once when the full size image or its base layer tiles have been loaded.
-         */
-        protected open fun onImageLoaded() {}
+    /**
+     * Called once when the full size image or its base layer tiles have been loaded.
+     */
+    protected open fun onImageLoaded() {}
 
-        /**
-         * Get source width, ignoring orientation. If [getOrientation] returns 90 or 270, you can use [getSHeight]
-         * for the apparent width.
-         * @return the source image width in pixels.
-         */
-        fun getSWidth(): Int {
-            return sWidth
-        }
+    /**
+     * Get source width, ignoring orientation. If [getOrientation] returns 90 or 270, you can use [getSHeight]
+     * for the apparent width.
+     * @return the source image width in pixels.
+     */
+    fun getSWidth(): Int {
+        return sWidth
+    }
 
-        /**
-         * Get source height, ignoring orientation. If [getOrientation] returns 90 or 270, you can use [getSWidth]
-         * for the apparent height.
-         * @return the source image height in pixels.
-         */
-        fun getSHeight(): Int {
-            return sHeight
-        }
+    /**
+     * Get source height, ignoring orientation. If [getOrientation] returns 90 or 270, you can use [getSWidth]
+     * for the apparent height.
+     * @return the source image height in pixels.
+     */
+    fun getSHeight(): Int {
+        return sHeight
+    }
 
-        /**
-         * Returns the orientation setting. This can return [ORIENTATION_USE_EXIF], in which case it doesn't tell you
-         * the applied orientation of the image. For that, use [getAppliedOrientation].
-         * @return the orientation setting. See static fields.
-         */
-        fun getOrientation(): Int {
-            return orientation
-        }
+    /**
+     * Returns the orientation setting. This can return [ORIENTATION_USE_EXIF], in which case it doesn't tell you
+     * the applied orientation of the image. For that, use [getAppliedOrientation].
+     * @return the orientation setting. See static fields.
+     */
+    fun getOrientation(): Int {
+        return orientation
+    }
 
-        /**
-         * Returns the actual orientation of the image relative to the source file. This will be based on the source file's
-         * EXIF orientation if you're using ORIENTATION_USE_EXIF. Values are 0, 90, 180, 270.
-         * @return the orientation applied after EXIF information has been extracted. See static fields.
-         */
-        fun getAppliedOrientation(): Int {
-            return getRequiredRotation()
-        }
+    /**
+     * Returns the actual orientation of the image relative to the source file. This will be based on the source file's
+     * EXIF orientation if you're using ORIENTATION_USE_EXIF. Values are 0, 90, 180, 270.
+     * @return the orientation applied after EXIF information has been extracted. See static fields.
+     */
+    fun getAppliedOrientation(): Int {
+        return getRequiredRotation()
+    }
 
-        /**
-         * Get the current state of the view (scale, center, orientation) for restoration after rotate. Will return null if
-         * the view is not ready.
-         * @return an [ImageViewState] instance representing the current position of the image. null if the view isn't ready.
-         */
-        val state: ImageViewState?
+    /**
+     * Get the current state of the view (scale, center, orientation) for restoration after rotate. Will return null if
+     * the view is not ready.
+     * @return an [ImageViewState] instance representing the current position of the image. null if the view isn't ready.
+     */
+    val state: ImageViewState?
         get() {
             return if (vTranslate != null && sWidth > 0 && sHeight > 0) {
                 ImageViewState(getScale(), center!!, getOrientation())
             } else null
         }
 
-        /**
-         * Returns true if zoom gesture detection is enabled.
-         * @return true if zoom gesture detection is enabled.
-         */
-        fun zoomEnabled(): Boolean {
-            return zoomEnabled
+    /**
+     * Returns true if zoom gesture detection is enabled.
+     * @return true if zoom gesture detection is enabled.
+     */
+    fun zoomEnabled(): Boolean {
+        return zoomEnabled
+    }
+
+    /**
+     * Enable or disable zoom gesture detection. Disabling zoom locks the current scale.
+     * @param zoomEnabled true to enable zoom gestures, false to disable.
+     */
+    fun setZoomEnabled(zoomEnabled: Boolean) {
+        this.zoomEnabled = zoomEnabled
+    }
+
+    /**
+     * Returns true if double tap & swipe to zoom is enabled.
+     * @return true if double tap & swipe to zoom is enabled.
+     */
+    fun quickScaleEnabled(): Boolean {
+        return quickScaleEnabled
+    }
+
+    /**
+     * Enable or disable double tap & swipe to zoom.
+     * @param quickScaleEnabled true to enable quick scale, false to disable.
+     */
+    fun setQuickScaleEnabled(quickScaleEnabled: Boolean) {
+        this.quickScaleEnabled = quickScaleEnabled
+    }
+
+    /**
+     * Returns true if pan gesture detection is enabled.
+     * @return true if pan gesture detection is enabled.
+     */
+    fun panEnabled(): Boolean {
+        return panEnabled
+    }
+
+    /**
+     * Enable or disable pan gesture detection. Disabling pan causes the image to be centered. Pan
+     * can still be changed from code.
+     * @param panEnabled true to enable panning, false to disable.
+     */
+    fun setPanEnabled(panEnabled: Boolean) {
+        this.panEnabled = panEnabled
+        if (!panEnabled && vTranslate != null) {
+            vTranslate!!.x = width / 2 - scale * (sWidth() / 2)
+            vTranslate!!.y = height / 2 - scale * (sHeight() / 2)
+            if (isReady) {
+                refreshRequiredTiles(true)
+                invalidate()
+            }
+        }
+    }
+
+    /**
+     * Set a solid color to render behind tiles, useful for displaying transparent PNGs.
+     * @param tileBgColor Background color for tiles.
+     */
+    fun setTileBackgroundColor(tileBgColor: Int) {
+        if (Color.alpha(tileBgColor) == 0) {
+            tileBgPaint = null
+        } else {
+            tileBgPaint = Paint()
+            tileBgPaint!!.style = Style.FILL
+            tileBgPaint!!.color = tileBgColor
+        }
+        invalidate()
+    }
+
+    /**
+     * Set the scale the image will zoom in to when double tapped. This also the scale point where a double tap is interpreted
+     * as a zoom out gesture - if the scale is greater than 90% of this value, a double tap zooms out. Avoid using values
+     * greater than the max zoom.
+     * @param doubleTapZoomScale New value for double tap gesture zoom scale.
+     */
+    fun setDoubleTapZoomScale(doubleTapZoomScale: Float) {
+        this.doubleTapZoomScale = doubleTapZoomScale
+    }
+
+    /**
+     * A density aware alternative to [setDoubleTapZoomScale]; this allows you to express the scale the
+     * image will zoom in to when double tapped in terms of the image pixel density. Values lower than the max scale will
+     * be ignored. A sensible starting point is 160 - the default used by this view.
+     * @param dpi New value for double tap gesture zoom scale.
+     */
+    fun setDoubleTapZoomDpi(dpi: Int) {
+        val metrics = resources.displayMetrics
+        val averageDpi = (metrics.xdpi + metrics.ydpi) / 2
+        setDoubleTapZoomScale(averageDpi / dpi)
+    }
+
+    /**
+     * Set the type of zoom animation to be used for double taps. See static fields.
+     * @param doubleTapZoomStyle New value for zoom style.
+     */
+    fun setDoubleTapZoomStyle(doubleTapZoomStyle: Int) {
+        require(VALID_ZOOM_STYLES.contains(doubleTapZoomStyle)) { "Invalid zoom style: $doubleTapZoomStyle" }
+        this.doubleTapZoomStyle = doubleTapZoomStyle
+    }
+
+    /**
+     * Set the duration of the double tap zoom animation.
+     * @param durationMs Duration in milliseconds.
+     */
+    fun setDoubleTapZoomDuration(durationMs: Int) {
+        this.doubleTapZoomDuration = max(0, durationMs)
+    }
+
+    /**
+     * Provide an [Executor] to be used for loading images. By default, a fixed thread pool with a size
+     * matching the number of available processors is used. You can also choose to supply an
+     * [Executor] of your own to avoid any contention. It is strongly recommended to use a single
+     * executor instance for the life of your application, not one per view instance.
+     *
+     * **Warning:** If you are using a custom implementation of [ImageRegionDecoder], and you
+     * supply an executor with more than one thread, you must make sure your implementation supports
+     * multithreaded bitmap decoding or has appropriate internal synchronization. From SDK 21, Android's
+     * [android.graphics.BitmapRegionDecoder] uses an internal lock so it is thread safe but
+     * there is no advantage to using multiple threads.
+     *
+     * @param executor an [Executor] for image loading.
+     */
+    fun setExecutor(executor: Executor) {
+        this.executor = executor
+    }
+
+    /**
+     * Enable or disable eager loading of tiles that appear on screen during gestures or animations,
+     * while the gesture or animation is still in progress. By default, this is enabled to improve
+     * responsiveness, but it can result in tiles being loaded and discarded more rapidly than
+     * necessary and reduce the animation frame rate on old/cheap devices. Disable this on older
+     * devices if you see poor performance. Tiles will then be loaded only when gestures and animations
+     * are completed.
+     * @param eagerLoadingEnabled true to enable loading during gestures, false to delay loading until gestures end
+     */
+    fun setEagerLoadingEnabled(eagerLoadingEnabled: Boolean) {
+        this.eagerLoadingEnabled = eagerLoadingEnabled
+    }
+
+    /**
+     * Enables visual debugging, showing tile boundaries and sizes.
+     * @param debug true to enable debugging, false to disable.
+     */
+    fun setDebug(debug: Boolean) {
+        this.debug = debug
+    }
+
+    /**
+     * Check if an image has been set. The image may not have been loaded and displayed yet.
+     * @return If an image is currently set.
+     */
+    fun hasImage(): Boolean {
+        return uri != null || bitmap != null
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    override fun setOnLongClickListener(onLongClickListener: OnLongClickListener?) {
+        this.onLongClickListener = onLongClickListener
+    }
+
+    /**
+     * Add a listener allowing notification of load and error events. Extend [DefaultOnImageEventListener]
+     * to simplify implementation.
+     * @param onImageEventListener an [OnImageEventListener] instance.
+     */
+    fun setOnImageEventListener(onImageEventListener: OnImageEventListener?) {
+        this.onImageEventListener = onImageEventListener
+    }
+
+    /**
+     * Add a listener for pan and zoom events. Extend [DefaultOnStateChangedListener] to simplify
+     * implementation.
+     * @param onStateChangedListener an [OnStateChangedListener] instance.
+     */
+    fun setOnStateChangedListener(onStateChangedListener: OnStateChangedListener?) {
+        this.onStateChangedListener = onStateChangedListener
+    }
+
+    /**
+     * Add a listener allowing notification of load and error events.
+     * @param onImageEventListener an [OnImageEventListener] instance.
+     */
+    fun addOnImageEventListener(onImageEventListener: OnImageEventListener) {
+        this.onImageEventListeners.add(onImageEventListener)
+    }
+
+    /**
+     * Remove a listener.
+     * @param onImageEventListener an [OnImageEventListener] instance.
+     */
+    fun removeOnImageEventListener(onImageEventListener: OnImageEventListener) {
+        this.onImageEventListeners.remove(onImageEventListener)
+    }
+
+    /**
+     * Add a listener for pan and zoom events.
+     * @param onStateChangedListener an [OnStateChangedListener] instance.
+     */
+    fun addOnStateChangedListener(onStateChangedListener: OnStateChangedListener) {
+        this.onStateChangedListeners.add(onStateChangedListener)
+    }
+
+    /**
+     * Remove a listener.
+     * @param onStateChangedListener an [OnStateChangedListener] instance.
+     */
+    fun removeOnStateChangedListener(onStateChangedListener: OnStateChangedListener) {
+        this.onStateChangedListeners.remove(onStateChangedListener)
+    }
+
+    /**
+     * Bind this view to a [LifecycleOwner] to automatically recycle resources when destroyed.
+     */
+    fun bindToLifecycle(owner: LifecycleOwner) {
+        owner.lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onDestroy(owner: LifecycleOwner) {
+                recycle()
+                owner.lifecycle.removeObserver(this)
+            }
+        })
+    }
+
+    private fun sendStateChanged(oldScale: Float, oldVTranslate: PointF, origin: Int) {
+        val currentCenter = center
+        if (scale != oldScale) {
+            onStateChangedListener?.onScaleChanged(scale, origin)
+            onStateChangedListeners.forEach { it.onScaleChanged(scale, origin) }
+        }
+        if (vTranslate != oldVTranslate) {
+            onStateChangedListener?.onCenterChanged(currentCenter, origin)
+            onStateChangedListeners.forEach { it.onCenterChanged(currentCenter, origin) }
+        }
+    }
+
+    /**
+     * Creates a panning animation builder, that when started will animate the image to place the given coordinates of
+     * the image in the center of the screen. If doing this would move the image beyond the edges of the screen, the
+     * image is instead animated to move the center point as near to the center of the screen as is allowed - it's
+     * guaranteed to be on screen.
+     * @param sCenter Target center point
+     * @return [AnimationBuilder] instance. Call [SubsamplingScaleImageView.AnimationBuilder.start] to start the anim.
+     */
+    fun animateCenter(sCenter: PointF): AnimationBuilder? {
+        return if (!isReady) null else AnimationBuilder(sCenter)
+    }
+
+    /**
+     * Creates a scale animation builder, that when started will animate a zoom in or out. If this moved the image
+     * beyond the panning limits, the image is automatically panned during the animation.
+     * @param scale Target scale.
+     * @return [AnimationBuilder] instance. Call [SubsamplingScaleImageView.AnimationBuilder.start] to start the anim.
+     */
+    fun animateScale(scale: Float): AnimationBuilder? {
+        return if (!isReady) null else AnimationBuilder(scale)
+    }
+
+    /**
+     * Creates a scale animation builder, that when started will animate a zoom in or out. If this moved the image
+     * beyond the panning limits, the image is automatically panned during the animation.
+     * @param scale Target scale.
+     * @param sCenter Target source center.
+     * @return [AnimationBuilder] instance. Call [SubsamplingScaleImageView.AnimationBuilder.start] to start the anim.
+     */
+    fun animateScaleAndCenter(scale: Float, sCenter: PointF): AnimationBuilder? {
+        return if (!isReady) null else AnimationBuilder(scale, sCenter)
+    }
+
+    /**
+     * Builder class used to set additional options for a scale animation. Create an instance using [animateScale],
+     * then set your options and call [start].
+     */
+    inner class AnimationBuilder {
+
+        private val targetScale: Float
+        private val targetSCenter: PointF
+        private val vFocus: PointF?
+        private var duration: Long = 500
+        private var easing = EASE_IN_OUT_QUAD
+        private var origin = ORIGIN_ANIM
+        private var interruptible = true
+        private var panLimited = true
+        private var listener: OnAnimationEventListener? = null
+
+        constructor(sCenter: PointF) {
+            this.targetScale = scale
+            this.targetSCenter = sCenter
+            this.vFocus = null
+        }
+
+        constructor(scale: Float) {
+            this.targetScale = scale
+            this.targetSCenter = center!!
+            this.vFocus = null
+        }
+
+        constructor(scale: Float, sCenter: PointF) {
+            this.targetScale = scale
+            this.targetSCenter = sCenter
+            this.vFocus = null
+        }
+
+        constructor(scale: Float, sCenter: PointF, vFocus: PointF) {
+            this.targetScale = scale
+            this.targetSCenter = sCenter
+            this.vFocus = vFocus
         }
 
         /**
-         * Enable or disable zoom gesture detection. Disabling zoom locks the current scale.
-         * @param zoomEnabled true to enable zoom gestures, false to disable.
+         * Desired duration of the anim in milliseconds. Default is 500.
+         * @param duration duration in milliseconds.
+         * @return this builder for method chaining.
          */
-        fun setZoomEnabled(zoomEnabled: Boolean) {
-            this.zoomEnabled = zoomEnabled
+        fun withDuration(duration: Long): AnimationBuilder {
+            this.duration = duration
+            return this
         }
 
         /**
-         * Returns true if double tap & swipe to zoom is enabled.
-         * @return true if double tap & swipe to zoom is enabled.
+         * Whether the animation can be interrupted with a touch. Default is true.
+         * @param interruptible interruptible flag.
+         * @return this builder for method chaining.
          */
-        fun quickScaleEnabled(): Boolean {
-            return quickScaleEnabled
+        fun withInterruptible(interruptible: Boolean): AnimationBuilder {
+            this.interruptible = interruptible
+            return this
         }
 
         /**
-         * Enable or disable double tap & swipe to zoom.
-         * @param quickScaleEnabled true to enable quick scale, false to disable.
+         * Set the easing style. See static fields. [EASE_IN_OUT_QUAD] is recommended, and the default.
+         * @param easing easing style.
+         * @return this builder for method chaining.
          */
-        fun setQuickScaleEnabled(quickScaleEnabled: Boolean) {
-            this.quickScaleEnabled = quickScaleEnabled
+        fun withEasing(easing: Int): AnimationBuilder {
+            require(VALID_EASING_STYLES.contains(easing)) { "Unknown easing type: $easing" }
+            this.easing = easing
+            return this
         }
 
         /**
-         * Returns true if pan gesture detection is enabled.
-         * @return true if pan gesture detection is enabled.
+         * Add an animation event listener.
+         * @param listener The listener.
+         * @return this builder for method chaining.
          */
-        fun panEnabled(): Boolean {
-            return panEnabled
+        fun withOnAnimationEventListener(listener: OnAnimationEventListener?): AnimationBuilder {
+            this.listener = listener
+            return this
         }
 
         /**
-         * Enable or disable pan gesture detection. Disabling pan causes the image to be centered. Pan
-         * can still be changed from code.
-         * @param panEnabled true to enable panning, false to disable.
+         * Only for internal use. When set to true, the animation proceeds towards the actual end point - the nearest
+         * point to the center allowed by pan limits. When false, animation is in the direction of the requested end
+         * point and is stopped when the limit for each axis is reached. The latter behavior is used for flings but
+         * nothing else.
          */
-        fun setPanEnabled(panEnabled: Boolean) {
-            this.panEnabled = panEnabled
-            if (!panEnabled && vTranslate != null) {
-                vTranslate!!.x = width / 2 - scale * (sWidth() / 2)
-                vTranslate!!.y = height / 2 - scale * (sHeight() / 2)
-                if (isReady) {
-                    refreshRequiredTiles(true)
-                    invalidate()
+        internal fun withPanLimited(panLimited: Boolean): AnimationBuilder {
+            this.panLimited = panLimited
+            return this
+        }
+
+        /**
+         * Only for internal use. Indicates what caused the animation.
+         */
+        internal fun withOrigin(origin: Int): AnimationBuilder {
+            this.origin = origin
+            return this
+        }
+
+        /**
+         * Starts the animation.
+         */
+        fun start() {
+            if (anim != null && anim!!.listener != null) {
+                try {
+                    anim!!.listener!!.onInterruptedByNewAnim()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error thrown by animation listener", e)
                 }
             }
-        }
 
-        /**
-         * Set a solid color to render behind tiles, useful for displaying transparent PNGs.
-         * @param tileBgColor Background color for tiles.
-         */
-        fun setTileBackgroundColor(tileBgColor: Int) {
-            if (Color.alpha(tileBgColor) == 0) {
-                tileBgPaint = null
-            } else {
-                tileBgPaint = Paint()
-                tileBgPaint!!.style = Style.FILL
-                tileBgPaint!!.color = tileBgColor
+            val vxCenter = paddingLeft + (width - paddingRight - paddingLeft) / 2
+            val vyCenter = paddingTop + (height - paddingBottom - paddingTop) / 2
+            val targetScale = limitedScale(this.targetScale)
+            val targetSCenter = if (panLimited) limitedSCenter(
+                this.targetSCenter.x,
+                this.targetSCenter.y,
+                targetScale,
+                PointF()
+            ) else this.targetSCenter
+            anim = Anim()
+            anim!!.scaleStart = scale
+            anim!!.scaleEnd = targetScale
+            anim!!.time = System.currentTimeMillis()
+            anim!!.sCenterEndRequested = targetSCenter
+            anim!!.sCenterStart = center
+            anim!!.sCenterEnd = targetSCenter
+            anim!!.vFocusStart = sourceToViewCoord(targetSCenter)
+            anim!!.vFocusEnd = PointF(vxCenter.toFloat(), vyCenter.toFloat())
+            anim!!.duration = duration
+            anim!!.interruptible = interruptible
+            anim!!.easing = easing
+            anim!!.origin = origin
+            anim!!.time = System.currentTimeMillis()
+            anim!!.listener = listener
+
+            if (vFocus != null) {
+// Calculate where translation will be at the end of the anim
+                val vTranslateXEnd = vFocus.x - targetScale * anim!!.sCenterStart!!.x
+                val vTranslateYEnd = vFocus.y - targetScale * anim!!.sCenterStart!!.y
+                val satEnd = ScaleAndTranslate(targetScale, PointF(vTranslateXEnd, vTranslateYEnd))
+// Fit the end translation into bounds
+                fitToBounds(true, satEnd)
+// Adjust the position of the focus point at end so image will be in bounds
+                anim!!.vFocusEnd = PointF(
+                    vFocus.x + (satEnd.vTranslate.x - vTranslateXEnd),
+                    vFocus.y + (satEnd.vTranslate.y - vTranslateYEnd)
+                )
             }
+
             invalidate()
         }
 
+    }
+
+
+    companion object {
+        private val TAG = SubsamplingScaleImageView::class.java.simpleName
+
+        /** Attempt to use EXIF information on the image to rotate it. Works for external files only. */
+        const val ORIENTATION_USE_EXIF = -1
+
+        /** Display the image file in its native orientation. */
+        const val ORIENTATION_0 = 0
+
+        /** Rotate the image 90 degrees clockwise. */
+        const val ORIENTATION_90 = 90
+
+        /** Rotate the image 180 degrees. */
+        const val ORIENTATION_180 = 180
+
+        /** Rotate the image 270 degrees clockwise. */
+        const val ORIENTATION_270 = 270
+
+        const val RESTORE_STRATEGY_DEFERRED = 1
+        const val RESTORE_STRATEGY_IMMEDIATE = 2
+
+        private val VALID_ORIENTATIONS = listOf(
+            ORIENTATION_0,
+            ORIENTATION_90,
+            ORIENTATION_180,
+            ORIENTATION_270,
+            ORIENTATION_USE_EXIF
+        )
+
+        /** During zoom animation, keep the point of the image that was tapped in the same place and scale the surrounding image. */
+        const val ZOOM_FOCUS_FIXED = 1
+
+        /** During zoom animation, move the point of the image that was tapped to the center of the screen. */
+        const val ZOOM_FOCUS_CENTER = 2
+
+        /** Zoom in to and center the tapped point immediately without animating. */
+        const val ZOOM_FOCUS_CENTER_IMMEDIATE = 3
+
+        private val VALID_ZOOM_STYLES =
+            listOf(ZOOM_FOCUS_FIXED, ZOOM_FOCUS_CENTER, ZOOM_FOCUS_CENTER_IMMEDIATE)
+
+        /** Quadratic ease out. Not recommended for scale animation, but good for panning. */
+        const val EASE_OUT_QUAD = 1
+
+        /** Quadratic ease in and out. */
+        const val EASE_IN_OUT_QUAD = 2
+
+        private val VALID_EASING_STYLES = listOf(EASE_IN_OUT_QUAD, EASE_OUT_QUAD)
+
+        /** Don't allow the image to be panned off-screen. As much of the image as possible is always displayed, centered in the view when it is smaller. This is the best option for galleries. */
+        const val PAN_LIMIT_INSIDE = 1
+
+        /** Allows the image to be panned until it is just off-screen, but no further. The edge of the image will stop when it is flush with the screen edge. */
+        const val PAN_LIMIT_OUTSIDE = 2
+
+        /** Allows the image to be panned until a corner reaches the center of the screen but no further. Useful when you want to pan any spot on the image to the exact center of the screen. */
+        const val PAN_LIMIT_CENTER = 3
+
+        private val VALID_PAN_LIMITS = listOf(PAN_LIMIT_INSIDE, PAN_LIMIT_OUTSIDE, PAN_LIMIT_CENTER)
+
+        /** Scale the image so that both dimensions of the image will be equal to or less than the corresponding dimension of the view. The image is then centered in the view. This is the default behavior and best for galleries. */
+        const val SCALE_TYPE_CENTER_INSIDE = 1
+
+        /** Scale the image uniformly so that both dimensions of the image will be equal to or larger than the corresponding dimension of the view. The image is then centered in the view. */
+        const val SCALE_TYPE_CENTER_CROP = 2
+
+        /** Scale the image so that both dimensions of the image will be equal to or less than the maxScale and equal to or larger than minScale. The image is then centered in the view. */
+        const val SCALE_TYPE_CUSTOM = 3
+
+        /** Scale the image so that both dimensions of the image will be equal to or larger than the corresponding dimension of the view. The top left is shown. */
+        const val SCALE_TYPE_START = 4
+
+        private val VALID_SCALE_TYPES = listOf(
+            SCALE_TYPE_CENTER_CROP,
+            SCALE_TYPE_CENTER_INSIDE,
+            SCALE_TYPE_CUSTOM,
+            SCALE_TYPE_START
+        )
+
+        /** State change originated from animation. */
+        const val ORIGIN_ANIM = 1
+
+        /** State change originated from touch gesture. */
+        const val ORIGIN_TOUCH = 2
+
+        /** State change originated from a fling momentum anim. */
+        const val ORIGIN_FLING = 3
+
+        /** State change originated from a double tap zoom anim. */
+        const val ORIGIN_DOUBLE_TAP_ZOOM = 4
+
+        // overrides for the dimensions of the generated tiles
+        const val TILE_SIZE_AUTO = Int.MAX_VALUE
+        private const val MESSAGE_LONG_CLICK = 1
+
+        private const val DEFAULT_QUICK_SCALE_THRESHOLD_DP = 20f
+        private const val DEBUG_TEXT_SIZE_DP = 12
+        private const val DEBUG_LINE_WIDTH_DP = 2
+        private const val DEBUG_CIRCLE_RADIUS_PX = 10f
+        private const val DEBUG_OFFSET_PX = 5
+        private const val DEBUG_LINE_SPACING_PX = 15
+
+        private var preferredBitmapConfig: Bitmap.Config? = Bitmap.Config.HARDWARE
+
         /**
-         * Set the scale the image will zoom in to when double tapped. This also the scale point where a double tap is interpreted
-         * as a zoom out gesture - if the scale is greater than 90% of this value, a double tap zooms out. Avoid using values
-         * greater than the max zoom.
-         * @param doubleTapZoomScale New value for double tap gesture zoom scale.
+         * Get the current preferred configuration for decoding bitmaps. [SSIVImageDecoder] and [ImageRegionDecoder]
+         * instances can read this and use it when decoding images.
+         * @return the preferred bitmap configuration, or null if none has been set.
          */
-        fun setDoubleTapZoomScale(doubleTapZoomScale: Float) {
-            this.doubleTapZoomScale = doubleTapZoomScale
+        @JvmStatic
+        fun getPreferredBitmapConfig(): Bitmap.Config? {
+            return preferredBitmapConfig
         }
 
         /**
-         * A density aware alternative to [setDoubleTapZoomScale]; this allows you to express the scale the
-         * image will zoom in to when double tapped in terms of the image pixel density. Values lower than the max scale will
-         * be ignored. A sensible starting point is 160 - the default used by this view.
-         * @param dpi New value for double tap gesture zoom scale.
-         */
-        fun setDoubleTapZoomDpi(dpi: Int) {
-            val metrics = resources.displayMetrics
-            val averageDpi = (metrics.xdpi + metrics.ydpi) / 2
-            setDoubleTapZoomScale(averageDpi / dpi)
-        }
-
-        /**
-         * Set the type of zoom animation to be used for double taps. See static fields.
-         * @param doubleTapZoomStyle New value for zoom style.
-         */
-        fun setDoubleTapZoomStyle(doubleTapZoomStyle: Int) {
-            require(VALID_ZOOM_STYLES.contains(doubleTapZoomStyle)) { "Invalid zoom style: $doubleTapZoomStyle" }
-            this.doubleTapZoomStyle = doubleTapZoomStyle
-        }
-
-        /**
-         * Set the duration of the double tap zoom animation.
-         * @param durationMs Duration in milliseconds.
-         */
-        fun setDoubleTapZoomDuration(durationMs: Int) {
-            this.doubleTapZoomDuration = max(0, durationMs)
-        }
-
-        /**
-         * Provide an [Executor] to be used for loading images. By default, a fixed thread pool with a size
-         * matching the number of available processors is used. You can also choose to supply an
-         * [Executor] of your own to avoid any contention. It is strongly recommended to use a single
-         * executor instance for the life of your application, not one per view instance.
+         * Set a global preferred bitmap config shared by all view instances and applied to new
+         * instances initialized after the call is made. This is a hint only; the bundled
+         * [SSIVImageDecoder] and [ImageRegionDecoder] classes all respect this (except when
+         * they were constructed with an instance-specific config) but custom decoder classes will not.
          *
-         * **Warning:** If you are using a custom implementation of [ImageRegionDecoder], and you
-         * supply an executor with more than one thread, you must make sure your implementation supports
-         * multithreaded bitmap decoding or has appropriate internal synchronization. From SDK 21, Android's
-         * [android.graphics.BitmapRegionDecoder] uses an internal lock so it is thread safe but
-         * there is no advantage to using multiple threads.
-         *
-         * @param executor an [Executor] for image loading.
+         * @param preferredBitmapConfig the bitmap configuration to be used by future instances of the view.
+         * Pass null to restore the default.
          */
-        fun setExecutor(executor: Executor) {
-            this.executor = executor
+        @JvmStatic
+        fun setPreferredBitmapConfig(preferredBitmapConfig: Bitmap.Config?) {
+            SubsamplingScaleImageView.preferredBitmapConfig = preferredBitmapConfig
         }
-
-        /**
-         * Enable or disable eager loading of tiles that appear on screen during gestures or animations,
-         * while the gesture or animation is still in progress. By default, this is enabled to improve
-         * responsiveness, but it can result in tiles being loaded and discarded more rapidly than
-         * necessary and reduce the animation frame rate on old/cheap devices. Disable this on older
-         * devices if you see poor performance. Tiles will then be loaded only when gestures and animations
-         * are completed.
-         * @param eagerLoadingEnabled true to enable loading during gestures, false to delay loading until gestures end
-         */
-        fun setEagerLoadingEnabled(eagerLoadingEnabled: Boolean) {
-            this.eagerLoadingEnabled = eagerLoadingEnabled
-        }
-
-        /**
-         * Enables visual debugging, showing tile boundaries and sizes.
-         * @param debug true to enable debugging, false to disable.
-         */
-        fun setDebug(debug: Boolean) {
-            this.debug = debug
-        }
-
-        /**
-         * Check if an image has been set. The image may not have been loaded and displayed yet.
-         * @return If an image is currently set.
-         */
-        fun hasImage(): Boolean {
-            return uri != null || bitmap != null
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        override fun setOnLongClickListener(onLongClickListener: OnLongClickListener?) {
-            this.onLongClickListener = onLongClickListener
-        }
-
-        /**
-         * Add a listener allowing notification of load and error events. Extend [DefaultOnImageEventListener]
-         * to simplify implementation.
-         * @param onImageEventListener an [OnImageEventListener] instance.
-         */
-        fun setOnImageEventListener(onImageEventListener: OnImageEventListener?) {
-            this.onImageEventListener = onImageEventListener
-        }
-
-        /**
-         * Add a listener for pan and zoom events. Extend [DefaultOnStateChangedListener] to simplify
-         * implementation.
-         * @param onStateChangedListener an [OnStateChangedListener] instance.
-         */
-        fun setOnStateChangedListener(onStateChangedListener: OnStateChangedListener?) {
-            this.onStateChangedListener = onStateChangedListener
-        }
-
-        /**
-         * Add a listener allowing notification of load and error events.
-         * @param onImageEventListener an [OnImageEventListener] instance.
-         */
-        fun addOnImageEventListener(onImageEventListener: OnImageEventListener) {
-            this.onImageEventListeners.add(onImageEventListener)
-        }
-
-        /**
-         * Remove a listener.
-         * @param onImageEventListener an [OnImageEventListener] instance.
-         */
-        fun removeOnImageEventListener(onImageEventListener: OnImageEventListener) {
-            this.onImageEventListeners.remove(onImageEventListener)
-        }
-
-        /**
-         * Add a listener for pan and zoom events.
-         * @param onStateChangedListener an [OnStateChangedListener] instance.
-         */
-        fun addOnStateChangedListener(onStateChangedListener: OnStateChangedListener) {
-            this.onStateChangedListeners.add(onStateChangedListener)
-        }
-
-        /**
-         * Remove a listener.
-         * @param onStateChangedListener an [OnStateChangedListener] instance.
-         */
-        fun removeOnStateChangedListener(onStateChangedListener: OnStateChangedListener) {
-            this.onStateChangedListeners.remove(onStateChangedListener)
-        }
-
-        /**
-         * Bind this view to a [LifecycleOwner] to automatically recycle resources when destroyed.
-         */
-        fun bindToLifecycle(owner: LifecycleOwner) {
-            owner.lifecycle.addObserver(object : DefaultLifecycleObserver {
-                override fun onDestroy(owner: LifecycleOwner) {
-                    recycle()
-                    owner.lifecycle.removeObserver(this)
-                }
-            })
-        }
-
-        private fun sendStateChanged(oldScale: Float, oldVTranslate: PointF, origin: Int) {
-            val currentCenter = center
-            if (scale != oldScale) {
-                onStateChangedListener?.onScaleChanged(scale, origin)
-                onStateChangedListeners.forEach { it.onScaleChanged(scale, origin) }
-            }
-            if (vTranslate != oldVTranslate) {
-                onStateChangedListener?.onCenterChanged(currentCenter, origin)
-                onStateChangedListeners.forEach { it.onCenterChanged(currentCenter, origin) }
-            }
-        }
-
-        /**
-         * Creates a panning animation builder, that when started will animate the image to place the given coordinates of
-         * the image in the center of the screen. If doing this would move the image beyond the edges of the screen, the
-         * image is instead animated to move the center point as near to the center of the screen as is allowed - it's
-         * guaranteed to be on screen.
-         * @param sCenter Target center point
-         * @return [AnimationBuilder] instance. Call [SubsamplingScaleImageView.AnimationBuilder.start] to start the anim.
-         */
-        fun animateCenter(sCenter: PointF): AnimationBuilder? {
-            return if (!isReady) null else AnimationBuilder(sCenter)
-        }
-
-        /**
-         * Creates a scale animation builder, that when started will animate a zoom in or out. If this moved the image
-         * beyond the panning limits, the image is automatically panned during the animation.
-         * @param scale Target scale.
-         * @return [AnimationBuilder] instance. Call [SubsamplingScaleImageView.AnimationBuilder.start] to start the anim.
-         */
-        fun animateScale(scale: Float): AnimationBuilder? {
-            return if (!isReady) null else AnimationBuilder(scale)
-        }
-
-        /**
-         * Creates a scale animation builder, that when started will animate a zoom in or out. If this moved the image
-         * beyond the panning limits, the image is automatically panned during the animation.
-         * @param scale Target scale.
-         * @param sCenter Target source center.
-         * @return [AnimationBuilder] instance. Call [SubsamplingScaleImageView.AnimationBuilder.start] to start the anim.
-         */
-        fun animateScaleAndCenter(scale: Float, sCenter: PointF): AnimationBuilder? {
-            return if (!isReady) null else AnimationBuilder(scale, sCenter)
-        }
-
-        /**
-         * Builder class used to set additional options for a scale animation. Create an instance using [animateScale],
-         * then set your options and call [start].
-         */
-        inner class AnimationBuilder {
-
-            private val targetScale: Float
-                private val targetSCenter: PointF
-                    private val vFocus: PointF?
-                        private var duration: Long = 500
-                            private var easing = EASE_IN_OUT_QUAD
-                            private var origin = ORIGIN_ANIM
-                            private var interruptible = true
-                            private var panLimited = true
-                            private var listener: OnAnimationEventListener? = null
-
-                                constructor(sCenter: PointF) {
-                                    this.targetScale = scale
-                                    this.targetSCenter = sCenter
-                                    this.vFocus = null
-                                }
-
-                                constructor(scale: Float) {
-                                    this.targetScale = scale
-                                    this.targetSCenter = center!!
-                                    this.vFocus = null
-                                }
-
-                                constructor(scale: Float, sCenter: PointF) {
-                                    this.targetScale = scale
-                                    this.targetSCenter = sCenter
-                                    this.vFocus = null
-                                }
-
-                                constructor(scale: Float, sCenter: PointF, vFocus: PointF) {
-                                    this.targetScale = scale
-                                    this.targetSCenter = sCenter
-                                    this.vFocus = vFocus
-                                }
-
-                                /**
-                                 * Desired duration of the anim in milliseconds. Default is 500.
-                                 * @param duration duration in milliseconds.
-                                 * @return this builder for method chaining.
-                                 */
-                                fun withDuration(duration: Long): AnimationBuilder {
-                                    this.duration = duration
-                                    return this
-                                }
-
-                                /**
-                                 * Whether the animation can be interrupted with a touch. Default is true.
-                                 * @param interruptible interruptible flag.
-                                 * @return this builder for method chaining.
-                                 */
-                                fun withInterruptible(interruptible: Boolean): AnimationBuilder {
-                                    this.interruptible = interruptible
-                                    return this
-                                }
-
-                                /**
-                                 * Set the easing style. See static fields. [EASE_IN_OUT_QUAD] is recommended, and the default.
-                                 * @param easing easing style.
-                                 * @return this builder for method chaining.
-                                 */
-                                fun withEasing(easing: Int): AnimationBuilder {
-                                    require(VALID_EASING_STYLES.contains(easing)) { "Unknown easing type: $easing" }
-                                    this.easing = easing
-                                    return this
-                                }
-
-                                /**
-                                 * Add an animation event listener.
-                                 * @param listener The listener.
-                                 * @return this builder for method chaining.
-                                 */
-                                fun withOnAnimationEventListener(listener: OnAnimationEventListener?): AnimationBuilder {
-                                    this.listener = listener
-                                    return this
-                                }
-
-                                /**
-                                 * Only for internal use. When set to true, the animation proceeds towards the actual end point - the nearest
-                                 * point to the center allowed by pan limits. When false, animation is in the direction of the requested end
-                                 * point and is stopped when the limit for each axis is reached. The latter behavior is used for flings but
-                                 * nothing else.
-                                 */
-                                internal fun withPanLimited(panLimited: Boolean): AnimationBuilder {
-                                    this.panLimited = panLimited
-                                    return this
-                                }
-
-                                /**
-                                 * Only for internal use. Indicates what caused the animation.
-                                 */
-                                internal fun withOrigin(origin: Int): AnimationBuilder {
-                                    this.origin = origin
-                                    return this
-                                }
-
-                                /**
-                                 * Starts the animation.
-                                 */
-                                fun start() {
-                                    if (anim != null && anim!!.listener != null) {
-try {
-    anim!!.listener!!.onInterruptedByNewAnim()
-} catch (e: Exception) {
-    Log.w(TAG, "Error thrown by animation listener", e)
-}
-                                    }
-
-                                    val vxCenter = paddingLeft + (width - paddingRight - paddingLeft) / 2
-                                    val vyCenter = paddingTop + (height - paddingBottom - paddingTop) / 2
-                                    val targetScale = limitedScale(this.targetScale)
-                                    val targetSCenter = if (panLimited) limitedSCenter(this.targetSCenter.x, this.targetSCenter.y, targetScale, PointF()) else this.targetSCenter
-                                    anim = Anim()
-                                    anim!!.scaleStart = scale
-                                    anim!!.scaleEnd = targetScale
-                                    anim!!.time = System.currentTimeMillis()
-                                    anim!!.sCenterEndRequested = targetSCenter
-                                    anim!!.sCenterStart = center
-                                    anim!!.sCenterEnd = targetSCenter
-                                    anim!!.vFocusStart = sourceToViewCoord(targetSCenter)
-                                    anim!!.vFocusEnd = PointF(vxCenter.toFloat(), vyCenter.toFloat())
-                                    anim!!.duration = duration
-                                    anim!!.interruptible = interruptible
-                                    anim!!.easing = easing
-                                    anim!!.origin = origin
-                                    anim!!.time = System.currentTimeMillis()
-                                    anim!!.listener = listener
-
-                                    if (vFocus != null) {
-// Calculate where translation will be at the end of the anim
-val vTranslateXEnd = vFocus.x - targetScale * anim!!.sCenterStart!!.x
-val vTranslateYEnd = vFocus.y - targetScale * anim!!.sCenterStart!!.y
-val satEnd = ScaleAndTranslate(targetScale, PointF(vTranslateXEnd, vTranslateYEnd))
-// Fit the end translation into bounds
-fitToBounds(true, satEnd)
-// Adjust the position of the focus point at end so image will be in bounds
-anim!!.vFocusEnd = PointF(
-    vFocus.x + (satEnd.vTranslate.x - vTranslateXEnd),
-                          vFocus.y + (satEnd.vTranslate.y - vTranslateYEnd)
-)
-                                    }
-
-                                    invalidate()
-                                }
-
-        }
-
-        /**
-         * An event listener for animations, allows events to be triggered when an animation completes,
-         * is aborted by another animation starting, or is aborted by a touch event. Note that none of
-         * these events are triggered if the activity is paused, the image is swapped, or in other cases
-         * where the view's internal state gets wiped or draw events stop.
-         */
-        interface OnAnimationEventListener {
-            /**
-             * The animation has completed, having reached its endpoint.
-             */
-            fun onComplete()
-
-            /**
-             * The animation has been aborted before reaching its endpoint because the user touched the screen.
-             */
-            fun onInterruptedByUser()
-
-            /**
-             * The animation has been aborted before reaching its endpoint because a new animation has been started.
-             */
-            fun onInterruptedByNewAnim()
-        }
-
-        /**
-         * Default implementation of [OnAnimationEventListener] for extension. This does nothing in any method.
-         */
-        open class DefaultOnAnimationEventListener : OnAnimationEventListener {
-            override fun onComplete() {}
-            override fun onInterruptedByUser() {}
-            override fun onInterruptedByNewAnim() {}
-        }
-
-        /**
-         * An event listener, allowing subclasses and activities to be notified of significant events.
-         */
-        interface OnImageEventListener {
-            /**
-             * Called when the dimensions of the image and view are known, and either a preview image,
-             * the full size image, or base layer tiles are loaded. This indicates the scale and translate
-             * are known and the next draw will display an image. This event can be used to hide a loading
-             * graphic, or inform a subclass that it is safe to draw overlays.
-             */
-            fun onReady()
-
-            /**
-             * Called when the full size image is ready. When using tiling, this means the lowest resolution
-             * base layer of tiles are loaded, and when tiling is disabled, the image bitmap is loaded.
-             * This event could be used as a trigger to enable gestures if you wanted interaction disabled
-             * while only a preview is displayed, otherwise for most cases [onReady] is the best
-             * event to listen to.
-             */
-            fun onImageLoaded()
-
-            /**
-             * Called when a preview image could not be loaded. This method cannot be relied upon; certain
-             * encoding types of supported image formats can result in corrupt or blank images being loaded
-             * and displayed with no detectable error. The view will continue to load the full size image.
-             * @param e The exception thrown. This error is logged by the view.
-             */
-            fun onPreviewLoadError(e: Exception)
-
-            /**
-             * Indicates an error initializing the decoder when using a tiling, or when loading the full
-             * size bitmap when tiling is disabled. This method cannot be relied upon; certain encoding
-             * types of supported image formats can result in corrupt or blank images being loaded and
-             * displayed with no detectable error.
-             * @param e The exception thrown. This error is also logged by the view.
-             */
-            fun onImageLoadError(e: Exception)
-
-            /**
-             * Called when an image tile could not be loaded. This method cannot be relied upon; certain
-             * encoding types of supported image formats can result in corrupt or blank images being loaded
-             * and displayed with no detectable error. Most cases where an unsupported file is used will
-             * result in an error caught by [onImageLoadError].
-             * @param e The exception thrown. This error is logged by the view.
-             */
-            fun onTileLoadError(e: Exception)
-
-            /**
-             * Called when a bitmap set using ImageSource.cachedBitmap is no longer being used by the View.
-             * This is useful if you wish to manage the bitmap after the preview is shown
-             */
-            fun onPreviewReleased()
-        }
-
-        /**
-         * Default implementation of [OnImageEventListener] for extension. This does nothing in any method.
-         */
-        open class DefaultOnImageEventListener : OnImageEventListener {
-            override fun onReady() {}
-            override fun onImageLoaded() {}
-            override fun onPreviewLoadError(e: Exception) {}
-            override fun onImageLoadError(e: Exception) {}
-            override fun onTileLoadError(e: Exception) {}
-            override fun onPreviewReleased() {}
-        }
-
-        /**
-         * An event listener, allowing activities to be notified of pan and zoom events. Initialisation
-         * and calls made by your code do not trigger events; touch events and animations do. Methods in
-         * this listener will be called on the UI thread and may be called very frequently - your
-         * implementation should return quickly.
-         */
-        interface OnStateChangedListener {
-            /**
-             * The scale has changed. Use with [getMaxScale] and [getMinScale] to determine
-             * whether the image is fully zoomed in or out.
-             * @param newScale The new scale.
-             * @param origin Where the event originated from - one of [ORIGIN_ANIM], [ORIGIN_TOUCH].
-             */
-            fun onScaleChanged(newScale: Float, origin: Int)
-
-            /**
-             * The source center has been changed. This can be a result of panning or zooming.
-             * @param newCenter The new source center point.
-             * @param origin Where the event originated from - one of [ORIGIN_ANIM], [ORIGIN_TOUCH].
-             */
-            fun onCenterChanged(newCenter: PointF?, origin: Int)
-        }
-
-        /**
-         * Default implementation of [OnStateChangedListener]. This does nothing in any method.
-         */
-        open class DefaultOnStateChangedListener : OnStateChangedListener {
-            override fun onCenterChanged(newCenter: PointF?, origin: Int) {}
-            override fun onScaleChanged(newScale: Float, origin: Int) {}
-        }
-
-        companion object {
-            private val TAG = SubsamplingScaleImageView::class.java.simpleName
-
-                /** Attempt to use EXIF information on the image to rotate it. Works for external files only. */
-                const val ORIENTATION_USE_EXIF = -1
-                /** Display the image file in its native orientation. */
-                const val ORIENTATION_0 = 0
-                /** Rotate the image 90 degrees clockwise. */
-                const val ORIENTATION_90 = 90
-                /** Rotate the image 180 degrees. */
-                const val ORIENTATION_180 = 180
-                /** Rotate the image 270 degrees clockwise. */
-                const val ORIENTATION_270 = 270
-
-                const val RESTORE_STRATEGY_DEFERRED = 1
-                const val RESTORE_STRATEGY_IMMEDIATE = 2
-
-                private val VALID_ORIENTATIONS = listOf(ORIENTATION_0, ORIENTATION_90, ORIENTATION_180, ORIENTATION_270, ORIENTATION_USE_EXIF)
-
-                /** During zoom animation, keep the point of the image that was tapped in the same place and scale the surrounding image. */
-                const val ZOOM_FOCUS_FIXED = 1
-                /** During zoom animation, move the point of the image that was tapped to the center of the screen. */
-                const val ZOOM_FOCUS_CENTER = 2
-                /** Zoom in to and center the tapped point immediately without animating. */
-                const val ZOOM_FOCUS_CENTER_IMMEDIATE = 3
-
-                private val VALID_ZOOM_STYLES = listOf(ZOOM_FOCUS_FIXED, ZOOM_FOCUS_CENTER, ZOOM_FOCUS_CENTER_IMMEDIATE)
-
-                /** Quadratic ease out. Not recommended for scale animation, but good for panning. */
-                const val EASE_OUT_QUAD = 1
-                /** Quadratic ease in and out. */
-                const val EASE_IN_OUT_QUAD = 2
-
-                private val VALID_EASING_STYLES = listOf(EASE_IN_OUT_QUAD, EASE_OUT_QUAD)
-
-                /** Don't allow the image to be panned off-screen. As much of the image as possible is always displayed, centered in the view when it is smaller. This is the best option for galleries. */
-                const val PAN_LIMIT_INSIDE = 1
-                /** Allows the image to be panned until it is just off-screen, but no further. The edge of the image will stop when it is flush with the screen edge. */
-                const val PAN_LIMIT_OUTSIDE = 2
-                /** Allows the image to be panned until a corner reaches the center of the screen but no further. Useful when you want to pan any spot on the image to the exact center of the screen. */
-                const val PAN_LIMIT_CENTER = 3
-
-                private val VALID_PAN_LIMITS = listOf(PAN_LIMIT_INSIDE, PAN_LIMIT_OUTSIDE, PAN_LIMIT_CENTER)
-
-                /** Scale the image so that both dimensions of the image will be equal to or less than the corresponding dimension of the view. The image is then centered in the view. This is the default behavior and best for galleries. */
-                const val SCALE_TYPE_CENTER_INSIDE = 1
-                /** Scale the image uniformly so that both dimensions of the image will be equal to or larger than the corresponding dimension of the view. The image is then centered in the view. */
-                const val SCALE_TYPE_CENTER_CROP = 2
-                /** Scale the image so that both dimensions of the image will be equal to or less than the maxScale and equal to or larger than minScale. The image is then centered in the view. */
-                const val SCALE_TYPE_CUSTOM = 3
-                /** Scale the image so that both dimensions of the image will be equal to or larger than the corresponding dimension of the view. The top left is shown. */
-                const val SCALE_TYPE_START = 4
-
-                private val VALID_SCALE_TYPES = listOf(SCALE_TYPE_CENTER_CROP, SCALE_TYPE_CENTER_INSIDE, SCALE_TYPE_CUSTOM, SCALE_TYPE_START)
-
-                /** State change originated from animation. */
-                const val ORIGIN_ANIM = 1
-                /** State change originated from touch gesture. */
-                const val ORIGIN_TOUCH = 2
-                /** State change originated from a fling momentum anim. */
-                const val ORIGIN_FLING = 3
-                /** State change originated from a double tap zoom anim. */
-                const val ORIGIN_DOUBLE_TAP_ZOOM = 4
-
-                // overrides for the dimensions of the generated tiles
-                const val TILE_SIZE_AUTO = Int.MAX_VALUE
-                private const val MESSAGE_LONG_CLICK = 1
-
-                private var preferredBitmapConfig: Bitmap.Config? = null
-
-                    /**
-                     * Get the current preferred configuration for decoding bitmaps. [SSIVImageDecoder] and [ImageRegionDecoder]
-                     * instances can read this and use it when decoding images.
-                     * @return the preferred bitmap configuration, or null if none has been set.
-                     */
-                    @JvmStatic
-                    fun getPreferredBitmapConfig(): Bitmap.Config? {
-                        return preferredBitmapConfig
-                    }
-
-                    /**
-                     * Set a global preferred bitmap config shared by all view instances and applied to new instances
-                     * initialized after the call is made. This is a hint only; the bundled [SSIVImageDecoder] and
-                     * [ImageRegionDecoder] classes all respect this (except when they were constructed with
-                     * an instance-specific config) but custom decoder classes will not.
-                     * @param preferredBitmapConfig the bitmap configuration to be used by future instances of the view. Pass null to restore the default.
-                     */
-                    @JvmStatic
-                    fun setPreferredBitmapConfig(preferredBitmapConfig: Bitmap.Config?) {
-                        SubsamplingScaleImageView.preferredBitmapConfig = preferredBitmapConfig
-                    }
-        }
+    }
 }

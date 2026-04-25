@@ -34,7 +34,7 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
 
     private val bitmapConfig: Bitmap.Config = bitmapConfig
         ?: SubsamplingScaleImageView.getPreferredBitmapConfig()
-        ?: Bitmap.Config.RGB_565
+        ?: Bitmap.Config.HARDWARE
 
     override fun init(context: Context, uri: Uri): Point {
         val uriString = uri.toString()
@@ -50,7 +50,7 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
             else -> {
                 context.contentResolver.openInputStream(uri)?.use {
                     BitmapRegionDecoder.newInstance(it)
-                } ?: throw Exception("Content resolver returned null stream. Unable to initialise with uri.")
+                } ?: throw IllegalArgumentException("Content resolver returned null stream. Unable to initialise with uri.")
             }
         }
         decoder = newDecoder
@@ -68,7 +68,7 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
                     inPreferredConfig = bitmapConfig
                 }
                 return d.decodeRegion(sRect, options)
-                    ?: throw RuntimeException("Skia image decoder returned null bitmap - image format may not be supported")
+                    ?: throw IllegalStateException("Skia image decoder returned null bitmap - image format may not be supported")
             } else {
                 throw IllegalStateException("Cannot decode region after decoder has been recycled")
             }

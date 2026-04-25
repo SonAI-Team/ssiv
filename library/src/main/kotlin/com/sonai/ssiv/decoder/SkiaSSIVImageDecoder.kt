@@ -19,7 +19,7 @@ class SkiaSSIVImageDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null
 
     private val bitmapConfig: Bitmap.Config = bitmapConfig
         ?: SubsamplingScaleImageView.getPreferredBitmapConfig()
-        ?: Bitmap.Config.RGB_565
+        ?: Bitmap.Config.HARDWARE
 
     override fun decode(context: Context, uri: Uri): Bitmap {
         val uriString = uri.toString()
@@ -45,7 +45,7 @@ class SkiaSSIVImageDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null
             }
         }
 
-        return bitmap ?: throw RuntimeException("Skia image decoder returned null bitmap - image format may not be supported")
+        return bitmap ?: throw IllegalStateException("Skia image decoder returned null bitmap - image format may not be supported")
     }
 
     companion object {

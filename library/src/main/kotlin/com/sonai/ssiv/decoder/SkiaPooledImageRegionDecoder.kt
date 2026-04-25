@@ -109,7 +109,7 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
                     BitmapRegionDecoder.newInstance(it)
                 }
             }
-        } ?: throw Exception("Unable to initialise decoder for $uri")
+        } ?: throw IllegalArgumentException("Unable to initialise decoder for $uri")
 
         this.fileLength = fileLength
         this.imageDimensions.set(decoder.width, decoder.height)
@@ -136,7 +136,7 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
                         inSampleSize = sampleSize
                         inPreferredConfig = bitmapConfig
                     }
-                    return decoder.decodeRegion(sRect, options) ?: throw RuntimeException(
+                    return decoder.decodeRegion(sRect, options) ?: throw IllegalStateException(
                         "Skia image decoder returned null bitmap - image format may not be supported"
                     )
                 }
@@ -170,12 +170,12 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
 
     protected open fun allowAdditionalDecoder(numberOfDecoders: Int, fileLength: Long): Boolean {
         return when {
-            numberOfDecoders >= 4 -> {
-                debug("No additional decoders allowed, reached hard limit (4)")
+            numberOfDecoders >= MAX_DECODERS -> {
+                debug("No additional decoders allowed, reached hard limit ($MAX_DECODERS)")
                 false
             }
-            numberOfDecoders * fileLength > 20 * 1024 * 1024 -> {
-                debug("No additional encoders allowed, reached hard memory limit (20Mb)")
+            numberOfDecoders * fileLength > MEMORY_THRESHOLD -> {
+                debug("No additional encoders allowed, reached hard memory limit ($MEMORY_THRESHOLD_MB Mb)")
                 false
             }
             numberOfDecoders >= getNumberOfCores() -> {
@@ -275,6 +275,10 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
     companion object {
         private val TAG = SkiaPooledImageRegionDecoder::class.java.simpleName
         private var debug = false
+
+        private const val MAX_DECODERS = 4
+        private const val MEMORY_THRESHOLD_MB = 20
+        private const val MEMORY_THRESHOLD = MEMORY_THRESHOLD_MB * 1024 * 1024
 
         private const val FILE_PREFIX = "file://"
         private const val ASSET_PREFIX = "${FILE_PREFIX}/android_asset/"
