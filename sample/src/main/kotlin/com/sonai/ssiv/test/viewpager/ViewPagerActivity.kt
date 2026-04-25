@@ -2,11 +2,11 @@ package com.sonai.ssiv.test.viewpager
 
 import android.os.Bundle
 import android.view.View
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentManager
-import androidx.fragment.app.FragmentStatePagerAdapter
-import androidx.viewpager.widget.ViewPager
 import androidx.activity.OnBackPressedCallback
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
+import androidx.viewpager2.adapter.FragmentStateAdapter
+import androidx.viewpager2.widget.ViewPager2
 import com.sonai.ssiv.test.AbstractPagesActivity
 import com.sonai.ssiv.test.Page
 import com.sonai.ssiv.test.R
@@ -20,14 +20,15 @@ class ViewPagerActivity : AbstractPagesActivity(
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val horizontalPager = findViewById<ViewPager>(R.id.horizontal_pager)
-        horizontalPager.adapter = ScreenSlidePagerAdapter(supportFragmentManager)
-        val verticalPager = findViewById<ViewPager>(R.id.vertical_pager)
-        verticalPager.adapter = ScreenSlidePagerAdapter(supportFragmentManager)
+        val horizontalPager = findViewById<ViewPager2>(R.id.horizontal_pager)
+        horizontalPager.adapter = ScreenSlidePagerAdapter(this)
+        val verticalPager = findViewById<ViewPager2>(R.id.vertical_pager)
+        verticalPager.adapter = ScreenSlidePagerAdapter(this)
+        verticalPager.orientation = ViewPager2.ORIENTATION_VERTICAL
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                val viewPager = findViewById<ViewPager>(if (getPage() == 0) R.id.horizontal_pager else R.id.vertical_pager)
+                val viewPager = findViewById<ViewPager2>(if (getPage() == 0) R.id.horizontal_pager else R.id.vertical_pager)
                 if (viewPager.currentItem == 0) {
                     isEnabled = false
                     onBackPressedDispatcher.onBackPressed()
@@ -49,17 +50,13 @@ class ViewPagerActivity : AbstractPagesActivity(
         }
     }
 
-    @Suppress("DEPRECATION")
-    private class ScreenSlidePagerAdapter(fm: FragmentManager) : FragmentStatePagerAdapter(fm, BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT) {
+    private class ScreenSlidePagerAdapter(activity: FragmentActivity) : FragmentStateAdapter(activity) {
+        override fun getItemCount(): Int = IMAGES.size
 
-        override fun getItem(position: Int): Fragment {
+        override fun createFragment(position: Int): Fragment {
             val fragment = ViewPagerFragment()
             fragment.setAsset(IMAGES[position])
             return fragment
-        }
-
-        override fun getCount(): Int {
-            return IMAGES.size
         }
     }
 

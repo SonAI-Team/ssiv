@@ -18,7 +18,7 @@ abstract class AbstractFragmentsActivity protected constructor(
         super.onCreate(savedInstanceState)
         setContentView(layout)
         actionBar?.apply {
-            title = title
+            setTitle(this@AbstractFragmentsActivity.title)
             setDisplayHomeAsUpEnabled(true)
         }
         if (savedInstanceState != null && savedInstanceState.containsKey(BUNDLE_PAGE)) {

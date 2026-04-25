@@ -20,7 +20,7 @@ abstract class AbstractPagesActivity protected constructor(
         super.onCreate(savedInstanceState)
         setContentView(layout)
         actionBar?.apply {
-            title = title
+            setTitle(this@AbstractPagesActivity.title)
             setDisplayHomeAsUpEnabled(true)
         }
         findViewById<View>(R.id.next).setOnClickListener { next() }

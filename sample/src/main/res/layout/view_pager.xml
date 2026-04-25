@@ -13,8 +13,8 @@
 
     </RelativeLayout>
 
-    <androidx.viewpager.widget.ViewPager style="@style/mainPanel" android:id="@+id/horizontal_pager" android:visibility="gone" />
+    <androidx.viewpager2.widget.ViewPager2 style="@style/mainPanel" android:id="@+id/horizontal_pager" android:visibility="gone" />
 
-    <com.sonai.ssiv.test.viewpager.VerticalViewPager style="@style/mainPanel" android:id="@+id/vertical_pager" android:visibility="gone"/>
+    <androidx.viewpager2.widget.ViewPager2 style="@style/mainPanel" android:id="@+id/vertical_pager" android:visibility="gone"/>
 
 </RelativeLayout>

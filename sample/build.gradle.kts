@@ -46,6 +46,8 @@ dependencies {
     implementation(libs.androidx.annotation)
     implementation(libs.androidx.fragment)
     implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.recyclerview)
+    implementation(libs.androidx.viewpager2)
 
     testImplementation(libs.junit.jupiter.api)
     testRuntimeOnly(libs.junit.jupiter.engine)

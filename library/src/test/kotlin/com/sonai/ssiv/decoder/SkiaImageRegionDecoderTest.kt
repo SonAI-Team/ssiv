@@ -2,7 +2,6 @@ package com.sonai.ssiv.decoder
 
 import android.graphics.Bitmap
 import android.graphics.BitmapRegionDecoder
-import android.net.Uri
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -22,7 +21,6 @@ class SkiaImageRegionDecoderTest {
 
     @Test
     fun `test initialization returns correct dimensions`() {
-        val uri = Uri.parse("file:///test.jpg")
         val mockDecoder = mockk<BitmapRegionDecoder>()
         
         mockkStatic(BitmapRegionDecoder::class)
