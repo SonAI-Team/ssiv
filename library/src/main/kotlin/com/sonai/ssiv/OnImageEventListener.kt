@@ -1,5 +1,7 @@
 package com.sonai.ssiv
 
+import java.lang.Exception
+
 /**
  * An event listener, allowing subclasses and activities to be notified of significant events.
  */
@@ -35,10 +37,3 @@ interface OnImageEventListener {
      */
     fun onPreviewReleased() {}
 }
-
-/**
- * Empty implementation for backward compatibility or when only some methods are needed.
- */
-@Deprecated("Use OnImageEventListener directly as it now has default implementations.", 
-    ReplaceWith("OnImageEventListener"))
-open class DefaultOnImageEventListener : OnImageEventListener

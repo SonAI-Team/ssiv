@@ -32,10 +32,8 @@ interface ImageRegionDecoder {
     /**
      * Decode a region of the image with the given sample size. This method is called off the UI
      * thread so it can safely load the image on the current thread. It is called from
-     * [android.os.AsyncTask]s running in an executor that may have multiple threads, so
-     * implementations must be thread safe. Adding `synchronized` to the method signature
-     * is the simplest way to achieve this, but bear in mind the [recycle] method can be
-     * called concurrently.
+     * coroutines running in an executor that may have multiple threads, so
+     * implementations must be thread safe.
      *
      * See [SkiaImageRegionDecoder] and [SkiaPooledImageRegionDecoder] for examples of
      * internal locking and synchronization.

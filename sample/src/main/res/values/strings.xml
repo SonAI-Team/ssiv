@@ -178,5 +178,4 @@
     <string name="configuration.p10.text">
         Debug has been enabled. This shows the tile boundaries and sizes.
     </string>
-    <string name="action.ai">AI Enhancement</string>
 </resources>

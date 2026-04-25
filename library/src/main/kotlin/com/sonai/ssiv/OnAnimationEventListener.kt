@@ -19,10 +19,3 @@ interface OnAnimationEventListener {
      */
     fun onInterruptedByNewAnim() {}
 }
-
-/**
- * Empty implementation for backward compatibility.
- */
-@Deprecated("Use OnAnimationEventListener directly as it now has default implementations.", 
-    ReplaceWith("OnAnimationEventListener"))
-open class DefaultOnAnimationEventListener : OnAnimationEventListener

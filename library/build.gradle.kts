@@ -55,7 +55,6 @@ dependencies {
     implementation(libs.androidx.exifinterface)
     implementation(libs.androidx.collection.ktx)
     implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.mediapipe.tasks.vision)
     
     "javadocs"(libs.androidx.annotation)
     "javadocs"(libs.androidx.exifinterface)

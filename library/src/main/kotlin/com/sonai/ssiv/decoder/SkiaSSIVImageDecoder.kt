@@ -3,49 +3,49 @@ package com.sonai.ssiv.decoder
 import android.content.ContentResolver
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.net.Uri
 import androidx.annotation.Keep
 import androidx.core.text.isDigitsOnly
 import com.sonai.ssiv.SubsamplingScaleImageView
+import java.io.IOException
 
 /**
  * Default implementation of [SSIVImageDecoder]
- * using Android's [BitmapFactory], based on the Skia library. This
- * works well in most circumstances and has reasonable performance, however it has some problems
- * with grayscale, indexed and CMYK images.
+ * using Android's [ImageDecoder]. This provides high performance and supports
+ * modern image formats and hardware acceleration.
  */
 class SkiaSSIVImageDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null) : SSIVImageDecoder {
 
-    private val bitmapConfig: Bitmap.Config = bitmapConfig
+    private val preferredConfig: Bitmap.Config = bitmapConfig
         ?: SubsamplingScaleImageView.getPreferredBitmapConfig()
         ?: Bitmap.Config.HARDWARE
 
     override fun decode(context: Context, uri: Uri): Bitmap {
-        val uriString = uri.toString()
-        val options = BitmapFactory.Options().apply {
-            inPreferredConfig = bitmapConfig
-        }
-        
-        val bitmap = when {
-            uriString.startsWith(RESOURCE_PREFIX) -> {
+        val source = when {
+            uri.toString().startsWith(RESOURCE_PREFIX) -> {
                 val id = uri.pathSegments.firstOrNull { it.isDigitsOnly() }?.toIntOrNull() ?: 0
-                BitmapFactory.decodeResource(context.resources, id, options)
+                ImageDecoder.createSource(context.resources, id)
             }
-            uriString.startsWith(ASSET_PREFIX) -> {
-                val assetName = uriString.substring(ASSET_PREFIX.length)
-                context.assets.open(assetName).use { 
-                    BitmapFactory.decodeStream(it, null, options)
-                }
+            uri.toString().startsWith(ASSET_PREFIX) -> {
+                val assetName = uri.toString().substring(ASSET_PREFIX.length)
+                ImageDecoder.createSource(context.assets, assetName)
             }
             else -> {
-                context.contentResolver.openInputStream(uri)?.use { 
-                    BitmapFactory.decodeStream(it, null, options)
-                }
+                ImageDecoder.createSource(context.contentResolver, uri)
             }
         }
 
-        return bitmap ?: throw IllegalStateException("Skia image decoder returned null bitmap - image format may not be supported")
+        return try {
+            ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                if (preferredConfig == Bitmap.Config.HARDWARE) {
+                    decoder.allocator = ImageDecoder.ALLOCATOR_HARDWARE
+                }
+                decoder.isMutableRequired = false
+            }
+        } catch (e: IOException) {
+            throw IllegalStateException("ImageDecoder failed to decode bitmap", e)
+        }
     }
 
     companion object {

@@ -35,8 +35,8 @@
     </RelativeLayout>
 
     <com.sonai.ssiv.test.extension.views.PinView
-        style="@style/mainPanel"
         android:id="@+id/imageView"
+        style="@style/fill"
         android:layout_below="@id/appbar"
         android:layout_above="@id/footer" />
 

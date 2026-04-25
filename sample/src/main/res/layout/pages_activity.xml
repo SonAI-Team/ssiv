@@ -42,7 +42,7 @@
 
     <com.sonai.ssiv.SubsamplingScaleImageView
         android:id="@+id/imageView"
-        style="@style/mainPanel"
+        style="@style/fill"
         android:layout_below="@id/appbar"
         android:layout_above="@id/footer" />
 

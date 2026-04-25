@@ -28,7 +28,11 @@ import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import com.sonai.ssiv.R.styleable
-import com.sonai.ssiv.decoder.CompatDecoderFactory
+import com.sonai.ssiv.SubsamplingScaleImageView.Companion.EASE_IN_OUT_QUAD
+import com.sonai.ssiv.SubsamplingScaleImageView.Companion.ORIENTATION_USE_EXIF
+import com.sonai.ssiv.SubsamplingScaleImageView.Companion.PAN_LIMIT_INSIDE
+import com.sonai.ssiv.SubsamplingScaleImageView.Companion.SCALE_TYPE_CENTER_INSIDE
+import com.sonai.ssiv.SubsamplingScaleImageView.Companion.TILE_SIZE_AUTO
 import com.sonai.ssiv.decoder.DecoderFactory
 import com.sonai.ssiv.decoder.ImageRegionDecoder
 import com.sonai.ssiv.decoder.SSIVImageDecoder
@@ -36,19 +40,19 @@ import com.sonai.ssiv.decoder.SkiaImageRegionDecoder
 import com.sonai.ssiv.decoder.SkiaSSIVImageDecoder
 import com.sonai.ssiv.internal.Anim
 import com.sonai.ssiv.internal.Tile
+import com.sonai.ssiv.internal.TileManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.Executor
-import java.util.concurrent.Executors
 import java.util.concurrent.locks.ReadWriteLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.math.abs
@@ -91,8 +95,8 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     // Sample size used to display the whole image when fully zoomed out
     private var fullImageSampleSize = 0
 
-    // Map of zoom level to tile grid
-    private var tileMap: MutableMap<Int, List<Tile>>? = null
+    // Tile manager
+    private val tileManager = TileManager()
 
     // Overlay tile boundaries and other info
     private var debug = false
@@ -118,10 +122,6 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     // overrides for the dimensions of the generated tiles
     private var maxTileWidth = TILE_SIZE_AUTO
     private var maxTileHeight = TILE_SIZE_AUTO
-
-    // An executor service for loading of images
-    private var executor: Executor =
-        Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors())
 
     // Whether tiles should be loaded while gestures and animations are still in progress
     private var eagerLoadingEnabled = true
@@ -210,6 +210,9 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     private var onStateChangedListener: OnStateChangedListener? = null
     private val onStateChangedListeners = CopyOnWriteArrayList<OnStateChangedListener>()
 
+    private val _events = MutableSharedFlow<SSIVEvent>(extraBufferCapacity = 16)
+    val events = _events.asSharedFlow()
+
     private var restoreStrategy = RESTORE_STRATEGY_DEFERRED
 
     // Long click listener
@@ -223,8 +226,6 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     private var debugTextPaint: Paint? = null
     private var debugLinePaint: Paint? = null
     private var tileBgPaint: Paint? = null
-
-    private var tileEnhancer: com.sonai.ssiv.ai.TileEnhancer? = null
 
     // Volatile fields used to reduce object creation
     private var satTemp: ScaleAndTranslate? = null
@@ -326,20 +327,6 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     }
 
     // Set a tile enhancer to use AI for upscaling tiles.
-    fun setTileEnhancer(enhancer: com.sonai.ssiv.ai.TileEnhancer?) {
-        if (this.tileEnhancer != enhancer) {
-            (this.tileEnhancer as? AutoCloseable)?.close()
-        }
-        this.tileEnhancer = enhancer
-        if (enhancer != null) {
-            decoder?.setBitmapConfig(Bitmap.Config.ARGB_8888)
-        } else {
-            getPreferredBitmapConfig()?.let {
-                decoder?.setBitmapConfig(it)
-            }
-        }
-        requestLayout()
-    }
 
     /**
      * Set the image source from a bitmap, resource, asset, file or other URI.
@@ -495,16 +482,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             bitmapIsPreview = false
             bitmapIsCached = false
         }
-        tileMap?.let {
-            for (tileMapEntry in it.entries) {
-                for (tile in tileMapEntry.value) {
-                    tile.visible = false
-                    tile.bitmap?.recycle()
-                    tile.bitmap = null
-                }
-            }
-            tileMap = null
-        }
+        tileManager.clear()
         setGestureDetector(context)
     }
 
@@ -629,7 +607,6 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         super.onDetachedFromWindow()
         scope.cancel()
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-        (tileEnhancer as? AutoCloseable)?.close()
     }
 
     private fun executeTilesInitTask(
@@ -641,7 +618,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         scope.launch {
             var decoder: ImageRegionDecoder? = null
             var exception: Exception? = null
-            val result = withContext(executor.asCoroutineDispatcher()) {
+            val result = withContext(Dispatchers.IO) {
                 try {
                     val sourceUri = source.toString()
                     debug("TilesInitTask.doInBackground")
@@ -680,7 +657,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         tile.loading = true
         scope.launch {
             var exception: Exception? = null
-            val bitmap = withContext(executor.asCoroutineDispatcher()) {
+            val bitmap = withContext(Dispatchers.IO) {
                 try {
                     if (decoder.isReady() && tile.visible) {
                         debug(
@@ -698,14 +675,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                                 }
                                 val decoded =
                                     decoder.decodeRegion(tile.fileSRect!!, tile.sampleSize)
-                                var b = decoded
-                                    ?: throw IllegalStateException("Decoder returned null bitmap")
-                                if (tileEnhancer != null && tile.sampleSize > 1) {
-                                    val start = System.currentTimeMillis()
-                                    b = tileEnhancer!!.enhance(b, tile.sRect!!, tile.sampleSize)
-                                    tile.enhancementTimeMs = System.currentTimeMillis() - start
-                                }
-                                b
+                                decoded ?: throw IllegalStateException("Decoder returned null bitmap")
                             } else {
                                 tile.loading = false
                                 null
@@ -729,12 +699,14 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             }
 
             if (bitmap != null) {
+                bitmap.prepareToDraw()
                 tile.bitmap = bitmap
                 tile.loading = false
                 onTileLoaded()
             } else if (exception != null) {
                 onImageEventListener?.onTileLoadError(exception)
                 onImageEventListeners.forEach { it.onTileLoadError(exception) }
+                _events.tryEmit(SSIVEvent.OnTileLoadError(exception))
             }
         }
     }
@@ -748,7 +720,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         scope.launch {
             var bitmap: Bitmap? = null
             var exception: Exception? = null
-            val orientation = withContext(executor.asCoroutineDispatcher()) {
+            val orientation = withContext(Dispatchers.IO) {
                 try {
                     val sourceUri = source.toString()
                     debug("BitmapLoadTask.doInBackground")
@@ -766,6 +738,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             }
 
             if (bitmap != null && orientation != null) {
+                bitmap.prepareToDraw()
                 if (preview) {
                     onPreviewLoaded(bitmap)
                 } else {
@@ -775,9 +748,11 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                 if (preview) {
                     onImageEventListener?.onPreviewLoadError(exception)
                     onImageEventListeners.forEach { it.onPreviewLoadError(exception) }
+                    _events.tryEmit(SSIVEvent.OnPreviewLoadError(exception))
                 } else {
                     onImageEventListener?.onImageLoadError(exception)
                     onImageEventListeners.forEach { it.onImageLoadError(exception) }
+                    _events.tryEmit(SSIVEvent.OnImageLoadError(exception))
                 }
             }
         }
@@ -1134,7 +1109,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         }
 
         // When using tiles, on first render with no tile map ready, initialize it and kick off async base image loading.
-        if (tileMap == null && decoder != null) {
+        if (tileManager.tileMap == null && decoder != null) {
             initialiseBaseLayer(getMaxBitmapDimensions(canvas))
         }
 
@@ -1207,6 +1182,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     }
 
     private fun drawTiles(canvas: Canvas) {
+        val tileMap = tileManager.tileMap
         if (tileMap != null && isBaseLayerReady()) {
 
             // Optimum sample size for current scale
@@ -1214,7 +1190,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
 
             // First check for missing tiles - if there are any we need the base layer underneath to avoid gaps
             var hasMissingTiles = false
-            for (tileMapEntry in tileMap!!.entries) {
+            for (tileMapEntry in tileMap.entries) {
                 if (tileMapEntry.key == sampleSize) {
                     for (tile in tileMapEntry.value) {
                         if (tile.visible && (tile.loading || tile.bitmap == null)) {
@@ -1225,7 +1201,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             }
 
             // Render all loaded tiles. LinkedHashMap used for bottom up rendering - lower res tiles underneath.
-            for (tileMapEntry in tileMap!!.entries) {
+            for (tileMapEntry in tileMap.entries) {
                 if (tileMapEntry.key == sampleSize || hasMissingTiles) {
                     for (tile in tileMapEntry.value) {
                         sourceToViewRect(tile.sRect!!, tile.vRect!!)
@@ -1301,14 +1277,6 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                             canvas.drawBitmap(tile.bitmap!!, matrix!!, bitmapPaint)
                             if (debug) {
                                 canvas.drawRect(tile.vRect!!, debugLinePaint!!)
-                                if (tile.enhancementTimeMs > 0) {
-                                    canvas.drawText(
-                                        "AI: ${tile.enhancementTimeMs}ms",
-                                        (tile.vRect!!.left + px(5)).toFloat(),
-                                        (tile.vRect!!.top + px(50)).toFloat(),
-                                        debugTextPaint!!
-                                    )
-                                }
                             }
                         } else if (tile.loading && debug) {
                             canvas.drawText(
@@ -1333,6 +1301,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     }
 
     private fun drawFullBitmap(canvas: Canvas) {
+        val tileMap = tileManager.tileMap
         if ((tileMap == null || !isBaseLayerReady()) && bitmap != null && !bitmap!!.isRecycled) {
 
             var xScale = scale
@@ -1506,9 +1475,11 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     private fun isBaseLayerReady(): Boolean {
         if (bitmap != null && !bitmapIsPreview) {
             return true
-        } else if (tileMap != null) {
+        }
+        val tileMap = tileManager.tileMap
+        if (tileMap != null) {
             var baseLayerReady = true
-            for (tileMapEntry in tileMap!!.entries) {
+            for (tileMapEntry in tileMap.entries) {
                 if (tileMapEntry.key == fullImageSampleSize) {
                     for (tile in tileMapEntry.value) {
                         if (tile.loading || tile.bitmap == null) {
@@ -1536,6 +1507,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             onReady()
             onImageEventListener?.onReady()
             onImageEventListeners.forEach { it.onReady() }
+            _events.tryEmit(SSIVEvent.OnReady)
         }
         return ready
     }
@@ -1552,6 +1524,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             onImageLoaded()
             onImageEventListener?.onImageLoaded()
             onImageEventListeners.forEach { it.onImageLoaded() }
+            _events.tryEmit(SSIVEvent.OnImageLoaded)
         }
         return imageLoaded
     }
@@ -1615,9 +1588,9 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
 
         } else {
 
-            initialiseTileMap(maxTileDimensions)
+            tileManager.initialiseTileMap(maxTileDimensions, fullImageSampleSize, sWidth(), sHeight(), width, height)
 
-            val baseGrid = tileMap!![fullImageSampleSize]
+            val baseGrid = tileManager.tileMap!![fullImageSampleSize]
             if (baseGrid != null) {
                 for (baseTile in baseGrid) {
                     executeTileLoadTask(decoder!!, baseTile)
@@ -1629,57 +1602,26 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
 
     }
 
-    /**
-     * Loads the optimum tiles for display at the current scale and translate, so the screen can be filled with tiles
-     * that are at least as high resolution as the screen. Frees up bitmaps that are now off the screen.
-     * @param load Whether to load the new tiles needed. Use false while scrolling/panning for performance.
-     */
     private fun refreshRequiredTiles(load: Boolean) {
-        if (decoder == null || tileMap == null) {
-            return
-        }
-
-        val sampleSize = min(fullImageSampleSize, calculateInSampleSize(scale))
-
-        // Load tiles of the correct sample size that are on screen. Discard tiles off-screen, and those that are higher
-        // resolution than required, or lower res than required but not the base layer, so the base layer is always present.
-        for (tileMapEntry in tileMap!!.entries) {
-            for (tile in tileMapEntry.value) {
-                if (tile.sampleSize < sampleSize || tile.sampleSize > sampleSize && tile.sampleSize != fullImageSampleSize) {
-                    tile.visible = false
-                    tile.bitmap?.recycle()
-                    tile.bitmap = null
-                }
-                if (tile.sampleSize == sampleSize) {
-                    if (tileVisible(tile)) {
-                        tile.visible = true
-                        if (!tile.loading && tile.bitmap == null && load) {
-                            executeTileLoadTask(decoder!!, tile)
-                        }
-                    } else if (tile.sampleSize != fullImageSampleSize) {
-                        tile.visible = false
-                        tile.bitmap?.recycle()
-                        tile.bitmap = null
-                    }
-                } else if (tile.sampleSize == fullImageSampleSize) {
-                    tile.visible = true
-                }
-            }
-        }
-
+        val sVisRect = RectF(
+            viewToSourceX(0f),
+            viewToSourceY(0f),
+            viewToSourceX(width.toFloat()),
+            viewToSourceY(height.toFloat())
+        )
+        tileManager.refreshRequiredTiles(
+            load,
+            scale,
+            fullImageSampleSize,
+            decoder,
+            width,
+            height,
+            sVisRect,
+            { calculateInSampleSize(it) },
+            { d, t -> executeTileLoadTask(d, t) }
+        )
     }
-
-    /**
-     * Determine whether tile is visible.
-     */
-    private fun tileVisible(tile: Tile): Boolean {
-        val sVisLeft = viewToSourceX(0f)
-        val sVisRight = viewToSourceX(width.toFloat())
-        val sVisTop = viewToSourceY(0f)
-        val sVisBottom = viewToSourceY(height.toFloat())
-        return !(sVisLeft > tile.sRect!!.right || tile.sRect!!.left > sVisRight || sVisTop > tile.sRect!!.bottom || tile.sRect!!.top > sVisBottom)
-    }
-
+    
     /**
      * Sets scale and translate ready for the next draw.
      */
@@ -1834,53 +1776,6 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     /**
      * Once source image and view dimensions are known, creates a map of sample size to tile grid.
      */
-    private fun initialiseTileMap(maxTileDimensions: Point) {
-        debug("initialiseTileMap maxTileDimensions=%dx%d", maxTileDimensions.x, maxTileDimensions.y)
-        this.tileMap = LinkedHashMap()
-        var sampleSize = fullImageSampleSize
-        var xTiles = 1
-        var yTiles = 1
-        while (true) {
-            var sTileWidth = sWidth() / xTiles
-            var sTileHeight = sHeight() / yTiles
-            var subTileWidth = sTileWidth / sampleSize
-            var subTileHeight = sTileHeight / sampleSize
-            while (subTileWidth + xTiles + 1 > maxTileDimensions.x || subTileWidth > width * 1.25 && sampleSize < fullImageSampleSize) {
-                xTiles += 1
-                sTileWidth = sWidth() / xTiles
-                subTileWidth = sTileWidth / sampleSize
-            }
-            while (subTileHeight + yTiles + 1 > maxTileDimensions.y || subTileHeight > height * 1.25 && sampleSize < fullImageSampleSize) {
-                yTiles += 1
-                sTileHeight = sHeight() / yTiles
-                subTileHeight = sTileHeight / sampleSize
-            }
-            val tileGrid = ArrayList<Tile>(xTiles * yTiles)
-            for (x in 0 until xTiles) {
-                for (y in 0 until yTiles) {
-                    val tile = Tile()
-                    tile.sampleSize = sampleSize
-                    tile.visible = sampleSize == fullImageSampleSize
-                    tile.sRect = Rect(
-                        x * sTileWidth,
-                        y * sTileHeight,
-                        if (x == xTiles - 1) sWidth() else (x + 1) * sTileWidth,
-                        if (y == yTiles - 1) sHeight() else (y + 1) * sTileHeight
-                    )
-                    tile.vRect = Rect(0, 0, 0, 0)
-                    tile.fileSRect = Rect(tile.sRect!!)
-                    tileGrid.add(tile)
-                }
-            }
-            tileMap!![sampleSize] = tileGrid
-            if (sampleSize == 1) {
-                break
-            } else {
-                sampleSize /= 2
-            }
-        }
-    }
-
     /**
      * Async task used to get image details without blocking the UI thread.
      */
@@ -1906,6 +1801,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                 if (bitmapIsCached) {
                     onImageEventListener?.onPreviewReleased()
                     onImageEventListeners.forEach { it.onPreviewReleased() }
+                    _events.tryEmit(SSIVEvent.OnPreviewReleased)
                 }
                 bitmapIsPreview = false
                 bitmapIsCached = false
@@ -1942,6 +1838,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             if (bitmapIsCached) {
                 onImageEventListener?.onPreviewReleased()
                 onImageEventListeners.forEach { it.onPreviewReleased() }
+                _events.tryEmit(SSIVEvent.OnPreviewReleased)
             }
             bitmapIsPreview = false
             bitmapIsCached = false
@@ -1996,6 +1893,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
 
         if (this.bitmap != null && this.bitmapIsCached) {
             onImageEventListener?.onPreviewReleased()
+            _events.tryEmit(SSIVEvent.OnPreviewReleased)
         }
 
         this.bitmapIsPreview = false
@@ -2509,32 +2407,12 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
 
     /**
      * Swap the default region decoder implementation for one of your own. You must do this before setting the image file or
-     * asset, and you cannot use a custom decoder when using layout XML to set an asset name. Your class must have a
-     * public default constructor.
-     * @param regionDecoderClass The [ImageRegionDecoder] implementation to use.
-     */
-    fun setRegionDecoderClass(regionDecoderClass: Class<out ImageRegionDecoder>) {
-        this.regionDecoderFactory = CompatDecoderFactory(regionDecoderClass)
-    }
-
-    /**
-     * Swap the default region decoder implementation for one of your own. You must do this before setting the image file or
      * asset, and you cannot use a custom decoder when using layout XML to set an asset name.
      * @param regionDecoderFactory The [DecoderFactory] implementation that produces [ImageRegionDecoder]
      * instances.
      */
     fun setRegionDecoderFactory(regionDecoderFactory: DecoderFactory<out ImageRegionDecoder>) {
         this.regionDecoderFactory = regionDecoderFactory
-    }
-
-    /**
-     * Swap the default bitmap decoder implementation for one of your own. You must do this before setting the image file or
-     * asset, and you cannot use a custom decoder when using layout XML to set an asset name. Your class must have a
-     * public default constructor.
-     * @param bitmapDecoderClass The [SSIVImageDecoder] implementation to use.
-     */
-    fun setBitmapDecoderClass(bitmapDecoderClass: Class<out SSIVImageDecoder>) {
-        this.bitmapDecoderFactory = CompatDecoderFactory(bitmapDecoderClass)
     }
 
     /**
@@ -2924,25 +2802,8 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     }
 
     /**
-     * Provide an [Executor] to be used for loading images. By default, a fixed thread pool with a size
-     * matching the number of available processors is used. You can also choose to supply an
-     * [Executor] of your own to avoid any contention. It is strongly recommended to use a single
-     * executor instance for the life of your application, not one per view instance.
-     *
-     * **Warning:** If you are using a custom implementation of [ImageRegionDecoder], and you
-     * supply an executor with more than one thread, you must make sure your implementation supports
-     * multithreaded bitmap decoding or has appropriate internal synchronization. From SDK 21, Android's
-     * [android.graphics.BitmapRegionDecoder] uses an internal lock so it is thread safe but
-     * there is no advantage to using multiple threads.
-     *
-     * @param executor an [Executor] for image loading.
-     */
-    fun setExecutor(executor: Executor) {
-        this.executor = executor
-    }
-
-    /**
-     * Enable or disable eager loading of tiles that appear on screen during gestures or animations,
+     * Enable or disable eager loading of tiles
+that appear on screen during gestures or animations,
      * while the gesture or animation is still in progress. By default, this is enabled to improve
      * responsiveness, but it can result in tiles being loaded and discarded more rapidly than
      * necessary and reduce the animation frame rate on old/cheap devices. Disable this on older
@@ -3075,10 +2936,12 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         if (scale != oldScale) {
             onStateChangedListener?.onScaleChanged(scale, origin)
             onStateChangedListeners.forEach { it.onScaleChanged(scale, origin) }
+            _events.tryEmit(SSIVEvent.OnScaleChanged(scale, origin))
         }
         if (vTranslate != oldVTranslate) {
             onStateChangedListener?.onCenterChanged(currentCenter, origin)
             onStateChangedListeners.forEach { it.onCenterChanged(currentCenter, origin) }
+            _events.tryEmit(SSIVEvent.OnCenterChanged(currentCenter, origin))
         }
     }
 

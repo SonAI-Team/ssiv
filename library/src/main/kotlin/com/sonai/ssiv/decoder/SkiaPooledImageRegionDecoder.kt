@@ -15,19 +15,16 @@ import android.util.Log
 import androidx.annotation.Keep
 import androidx.core.text.isDigitsOnly
 import com.sonai.ssiv.SubsamplingScaleImageView
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReadWriteLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
 
 /**
  * <p>
  * An implementation of [ImageRegionDecoder] using a pool of [BitmapRegionDecoder]s,
- * to provide true parallel loading of tiles. This is only effective if parallel loading has been
- * enabled in the view by calling [com.sonai.ssiv.SubsamplingScaleImageView.setExecutor]
- * with a multithreaded [java.util.concurrent.Executor] instance.
+ * to provide true parallel loading of tiles.
  * </p><p>
  * One decoder is initialized when the class is initialized. This is enough to decode base layer tiles.
  * Additional decoders are initialized when a subregion of the image is first requested, which indicates
@@ -42,12 +39,13 @@ import kotlinx.coroutines.*
  */
 open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null) : ImageRegionDecoder {
 
-    private var decoderPool: DecoderPool? = DecoderPool()
+    private var decoderPool: Channel<BitmapRegionDecoder>? = Channel(MAX_DECODERS)
     private val decoderLock: ReadWriteLock = ReentrantReadWriteLock(true)
+    private val allDecoders = ArrayList<BitmapRegionDecoder>()
 
     private var bitmapConfig: Bitmap.Config = bitmapConfig
         ?: SubsamplingScaleImageView.getPreferredBitmapConfig()
-        ?: Bitmap.Config.RGB_565
+        ?: Bitmap.Config.HARDWARE
 
     private var context: Context? = null
     private var uri: Uri? = null
@@ -68,7 +66,7 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         if (lazyInited.compareAndSet(false, true) && fileLength < Long.MAX_VALUE) {
             debug("Starting lazy init of additional decoders")
             scope.launch {
-                while (isActive && decoderPool != null && allowAdditionalDecoder(decoderPool?.size() ?: 0, fileLength)) {
+                while (isActive && decoderPool != null && allowAdditionalDecoder(allDecoders.size, fileLength)) {
                     try {
                         val start = System.currentTimeMillis()
                         debug("Starting decoder")
@@ -115,7 +113,8 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         this.imageDimensions.set(decoder.width, decoder.height)
         decoderLock.writeLock().lock()
         try {
-            decoderPool?.add(decoder)
+            allDecoders.add(decoder)
+            decoderPool?.trySend(decoder)
         } finally {
             decoderLock.writeLock().unlock()
         }
@@ -126,43 +125,40 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         if (sRect.width() < imageDimensions.x || sRect.height() < imageDimensions.y) {
             lazyInit()
         }
-        decoderLock.readLock().lock()
+        
+        val pool = decoderPool ?: throw IllegalStateException("Cannot decode region after decoder has been recycled")
+        val decoder = runBlocking { pool.receive() }
+        
         try {
-            val pool = decoderPool ?: throw IllegalStateException("Cannot decode region after decoder has been recycled")
-            val decoder = pool.acquire()
-            try {
-                if (decoder != null && !decoder.isRecycled) {
-                    val options = BitmapFactory.Options().apply {
-                        inSampleSize = sampleSize
-                        inPreferredConfig = bitmapConfig
-                    }
-                    return decoder.decodeRegion(sRect, options) ?: throw IllegalStateException(
-                        "Skia image decoder returned null bitmap - image format may not be supported"
-                    )
+            if (!decoder.isRecycled) {
+                val options = BitmapFactory.Options().apply {
+                    inSampleSize = sampleSize
+                    inPreferredConfig = bitmapConfig
                 }
-            } finally {
-                decoder?.let { pool.release(it) }
+                return decoder.decodeRegion(sRect, options) ?: throw IllegalStateException(
+                    "Skia image decoder returned null bitmap - image format may not be supported"
+                )
             }
-            throw IllegalStateException("Decoder is null or recycled")
+            throw IllegalStateException("Decoder is recycled")
         } finally {
-            decoderLock.readLock().unlock()
+            pool.trySend(decoder)
         }
     }
 
     override fun isReady(): Boolean {
-        return decoderPool?.isEmpty() == false
+        return allDecoders.isNotEmpty() && allDecoders.all { !it.isRecycled }
     }
 
     override fun recycle() {
         scope.cancel()
         decoderLock.writeLock().lock()
         try {
-            decoderPool?.let {
-                it.recycle()
-                decoderPool = null
-                context = null
-                uri = null
-            }
+            allDecoders.forEach { it.recycle() }
+            allDecoders.clear()
+            decoderPool?.close()
+            decoderPool = null
+            context = null
+            uri = null
         } finally {
             decoderLock.writeLock().unlock()
         }
@@ -197,65 +193,6 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         }
     }
 
-    private class DecoderPool {
-        private val available = Semaphore(0, true)
-        private val decoders = ConcurrentHashMap<BitmapRegionDecoder, Boolean>()
-
-        fun isEmpty(): Boolean = decoders.isEmpty()
-
-        fun size(): Int = decoders.size
-
-        fun acquire(): BitmapRegionDecoder? {
-            available.acquireUninterruptibly()
-            return getNextAvailable()
-        }
-
-        fun release(decoder: BitmapRegionDecoder) {
-            if (markAsUnused(decoder)) {
-                available.release()
-            }
-        }
-
-        @Synchronized
-        fun add(decoder: BitmapRegionDecoder) {
-            decoders[decoder] = false
-            available.release()
-        }
-
-        fun recycle() {
-            while (!decoders.isEmpty()) {
-                val decoder = acquire()
-                decoder?.recycle()
-                decoders.remove(decoder)
-            }
-        }
-
-        @Synchronized
-        private fun getNextAvailable(): BitmapRegionDecoder? {
-            for (entry in decoders.entries) {
-                if (!entry.value) {
-                    entry.setValue(true)
-                    return entry.key
-                }
-            }
-            return null
-        }
-
-        @Synchronized
-        private fun markAsUnused(decoder: BitmapRegionDecoder): Boolean {
-            for (entry in decoders.entries) {
-                if (decoder === entry.key) {
-                    return if (entry.value) {
-                        entry.setValue(false)
-                        true
-                    } else {
-                        false
-                    }
-                }
-            }
-            return false
-        }
-    }
 
     private fun getNumberOfCores(): Int = Runtime.getRuntime().availableProcessors()
 

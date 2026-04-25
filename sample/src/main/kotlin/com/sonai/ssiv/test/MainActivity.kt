@@ -27,7 +27,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.main)
 
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(id.toolbar)) { v, insets ->
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(id.appbar)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(v.paddingLeft, systemBars.top, v.paddingRight, v.paddingBottom)
             insets

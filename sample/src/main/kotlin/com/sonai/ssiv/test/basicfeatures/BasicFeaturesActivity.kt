@@ -5,7 +5,6 @@ import android.view.Menu
 import android.view.MenuItem
 import com.sonai.ssiv.ImageSource
 import com.sonai.ssiv.SubsamplingScaleImageView
-import com.sonai.ssiv.ai.MediaPipeTileEnhancer
 import com.sonai.ssiv.test.AbstractPagesActivity
 import com.sonai.ssiv.test.Page
 import com.sonai.ssiv.test.R
@@ -25,7 +24,6 @@ class BasicFeaturesActivity : AbstractPagesActivity(
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         view = findViewById(R.id.imageView)
-        view?.setTileEnhancer(MediaPipeTileEnhancer(this, "assets/model.tflite"))
         view?.setImage(ImageSource.asset("sanmartino.jpg"))
     }
 
@@ -35,15 +33,6 @@ class BasicFeaturesActivity : AbstractPagesActivity(
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == R.id.action_ai) {
-            item.isChecked = !item.isChecked
-            if (item.isChecked) {
-                view?.setTileEnhancer(MediaPipeTileEnhancer(this, "assets/model.tflite"))
-            } else {
-                view?.setTileEnhancer(null)
-            }
-            return true
-        }
         return super.onOptionsItemSelected(item)
     }
 }

@@ -16,10 +16,3 @@ interface OnStateChangedListener {
      */
     fun onCenterChanged(newCenter: PointF?, origin: Int) {}
 }
-
-/**
- * Empty implementation for backward compatibility.
- */
-@Deprecated("Use OnStateChangedListener directly as it now has default implementations.", 
-    ReplaceWith("OnStateChangedListener"))
-open class DefaultOnStateChangedListener : OnStateChangedListener

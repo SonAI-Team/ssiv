@@ -22,7 +22,7 @@ abstract class AbstractFragmentsActivity protected constructor(
         super.onCreate(savedInstanceState)
         setContentView(layout)
 
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.toolbar)) { v, insets ->
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.appbar)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(v.paddingLeft, systemBars.top, v.paddingRight, v.paddingBottom)
             insets
