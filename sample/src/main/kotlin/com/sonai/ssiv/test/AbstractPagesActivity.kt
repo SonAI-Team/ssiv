@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.MenuItem
 import android.view.View
 import android.widget.TextView
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 
 abstract class AbstractPagesActivity protected constructor(
@@ -17,6 +18,7 @@ abstract class AbstractPagesActivity protected constructor(
     protected open fun onPageChanged(page: Int) {}
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContentView(layout)
         setSupportActionBar(findViewById(R.id.toolbar))

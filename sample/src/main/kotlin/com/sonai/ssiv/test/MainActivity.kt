@@ -14,12 +14,14 @@ import com.sonai.ssiv.test.configuration.ConfigurationActivity
 import com.sonai.ssiv.test.eventhandling.EventHandlingActivity
 import com.sonai.ssiv.test.eventhandlingadvanced.AdvancedEventHandlingActivity
 import com.sonai.ssiv.test.extension.ExtensionActivity
+import androidx.activity.enableEdgeToEdge
 import com.sonai.ssiv.test.imagedisplay.ImageDisplayActivity
 import com.sonai.ssiv.test.viewpager.ViewPagerActivity
 
 class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContentView(R.layout.main)
         setSupportActionBar(findViewById(id.toolbar))

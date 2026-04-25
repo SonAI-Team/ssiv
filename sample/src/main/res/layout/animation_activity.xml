@@ -1,4 +1,6 @@
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android" style="@style/fill">
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/fill"
+    android:fitsSystemWindows="true">
 
     <RelativeLayout style="@style/footer" android:id="@+id/footer">
 

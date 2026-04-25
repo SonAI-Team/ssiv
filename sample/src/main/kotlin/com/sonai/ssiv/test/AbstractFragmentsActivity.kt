@@ -2,6 +2,7 @@ package com.sonai.ssiv.test
 
 import android.os.Bundle
 import android.view.MenuItem
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 
 abstract class AbstractFragmentsActivity protected constructor(
@@ -15,6 +16,7 @@ abstract class AbstractFragmentsActivity protected constructor(
     protected abstract fun onPageChanged(page: Int)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContentView(layout)
         setSupportActionBar(findViewById(R.id.toolbar))
