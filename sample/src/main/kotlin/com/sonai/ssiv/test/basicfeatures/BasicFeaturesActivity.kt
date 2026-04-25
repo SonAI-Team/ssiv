@@ -1,6 +1,8 @@
 package com.sonai.ssiv.test.basicfeatures
 
 import android.os.Bundle
+import android.view.Menu
+import android.view.MenuItem
 import com.sonai.ssiv.ImageSource
 import com.sonai.ssiv.SubsamplingScaleImageView
 import com.sonai.ssiv.ai.MediaPipeTileEnhancer
@@ -18,10 +20,30 @@ class BasicFeaturesActivity : AbstractPagesActivity(
     )
 ) {
 
+    private var view: SubsamplingScaleImageView? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val view = findViewById<SubsamplingScaleImageView>(R.id.imageView)
-        view.setTileEnhancer(MediaPipeTileEnhancer(this, "assets/model.tflite"))
-        view.setImage(ImageSource.asset("sanmartino.jpg"))
+        view = findViewById(R.id.imageView)
+        view?.setTileEnhancer(MediaPipeTileEnhancer(this, "assets/model.tflite"))
+        view?.setImage(ImageSource.asset("sanmartino.jpg"))
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_basic, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == R.id.action_ai) {
+            item.isChecked = !item.isChecked
+            if (item.isChecked) {
+                view?.setTileEnhancer(MediaPipeTileEnhancer(this, "assets/model.tflite"))
+            } else {
+                view?.setTileEnhancer(null)
+            }
+            return true
+        }
+        return super.onOptionsItemSelected(item)
     }
 }

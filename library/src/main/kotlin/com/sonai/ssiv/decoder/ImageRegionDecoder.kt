@@ -47,12 +47,19 @@ interface ImageRegionDecoder {
     fun decodeRegion(sRect: Rect, sampleSize: Int): Bitmap?
 
     /**
+     * Optional method to set a preferred bitmap configuration for decoding.
+     */
+    fun setBitmapConfig(config: Bitmap.Config) {}
+
+    /**
      * Status check. Should return false before initialization and after recycle.
      * @return true if the decoder is ready to be used.
      */
     fun isReady(): Boolean
 
-    // This method will be called when the decoder is no longer required. It should clean up any resources still in use.
+    /**
+    * This method will be called when the decoder is no longer required. It should clean up any resources still in use.
+    */
     fun recycle()
 
 }

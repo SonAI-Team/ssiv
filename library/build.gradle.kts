@@ -53,6 +53,7 @@ dependencies {
     implementation(libs.androidx.annotation)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.exifinterface)
+    implementation(libs.androidx.collection.ktx)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.mediapipe.tasks.vision)
     

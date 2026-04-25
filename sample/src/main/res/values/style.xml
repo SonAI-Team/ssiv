@@ -5,6 +5,7 @@
         <item name="colorPrimary">#6750A4</item>
         <item name="colorSecondary">#625B71</item>
         <item name="android:windowBackground">?attr/colorSurface</item>
+        <item name="actionMenuTextColor">?attr/colorOnSurface</item>
     </style>
 
     <style name="indexDivider">
@@ -29,8 +30,6 @@
     </style>
 
     <style name="mainPanel">
-        <item name="android:layout_alignParentTop">true</item>
-        <item name="android:layout_above">@+id/footer</item>
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">match_parent</item>
     </style>

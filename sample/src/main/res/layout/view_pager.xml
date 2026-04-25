@@ -1,8 +1,21 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     style="@style/fill"
-    android:fitsSystemWindows="true">
+    android:background="?attr/colorSurface">
 
-    <RelativeLayout style="@style/footer" android:id="@+id/footer">
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize" />
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <RelativeLayout style="@style/footer" android:id="@+id/footer" android:layout_alignParentBottom="true">
 
         <ImageView style="@style/previousButton" android:id="@+id/previous" android:contentDescription="@string/button.previous"/>
 
@@ -15,8 +28,18 @@
 
     </RelativeLayout>
 
-    <androidx.viewpager2.widget.ViewPager2 style="@style/mainPanel" android:id="@+id/horizontal_pager" android:visibility="gone" />
+    <androidx.viewpager2.widget.ViewPager2
+        style="@style/mainPanel"
+        android:id="@+id/horizontal_pager"
+        android:visibility="gone"
+        android:layout_below="@id/appbar"
+        android:layout_above="@id/footer" />
 
-    <androidx.viewpager2.widget.ViewPager2 style="@style/mainPanel" android:id="@+id/vertical_pager" android:visibility="gone"/>
+    <androidx.viewpager2.widget.ViewPager2
+        style="@style/mainPanel"
+        android:id="@+id/vertical_pager"
+        android:visibility="gone"
+        android:layout_below="@id/appbar"
+        android:layout_above="@id/footer" />
 
 </RelativeLayout>

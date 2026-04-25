@@ -327,7 +327,17 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
 
     // Set a tile enhancer to use AI for upscaling tiles.
     fun setTileEnhancer(enhancer: com.sonai.ssiv.ai.TileEnhancer?) {
+        if (this.tileEnhancer != enhancer) {
+            (this.tileEnhancer as? AutoCloseable)?.close()
+        }
         this.tileEnhancer = enhancer
+        if (enhancer != null) {
+            decoder?.setBitmapConfig(Bitmap.Config.ARGB_8888)
+        } else {
+            getPreferredBitmapConfig()?.let {
+                decoder?.setBitmapConfig(it)
+            }
+        }
         requestLayout()
     }
 
@@ -619,6 +629,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         super.onDetachedFromWindow()
         scope.cancel()
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+        (tileEnhancer as? AutoCloseable)?.close()
     }
 
     private fun executeTilesInitTask(
@@ -690,7 +701,9 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                                 var b = decoded
                                     ?: throw IllegalStateException("Decoder returned null bitmap")
                                 if (tileEnhancer != null && tile.sampleSize > 1) {
-                                    b = tileEnhancer!!.enhance(b)
+                                    val start = System.currentTimeMillis()
+                                    b = tileEnhancer!!.enhance(b, tile.sRect!!, tile.sampleSize)
+                                    tile.enhancementTimeMs = System.currentTimeMillis() - start
                                 }
                                 b
                             } else {
@@ -1288,6 +1301,14 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                             canvas.drawBitmap(tile.bitmap!!, matrix!!, bitmapPaint)
                             if (debug) {
                                 canvas.drawRect(tile.vRect!!, debugLinePaint!!)
+                                if (tile.enhancementTimeMs > 0) {
+                                    canvas.drawText(
+                                        "AI: ${tile.enhancementTimeMs}ms",
+                                        (tile.vRect!!.left + px(5)).toFloat(),
+                                        (tile.vRect!!.top + px(50)).toFloat(),
+                                        debugTextPaint!!
+                                    )
+                                }
                             }
                         } else if (tile.loading && debug) {
                             canvas.drawText(

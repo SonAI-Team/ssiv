@@ -6,6 +6,8 @@ import android.view.View
 import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 
 abstract class AbstractPagesActivity protected constructor(
     private val title: Int,
@@ -21,6 +23,13 @@ abstract class AbstractPagesActivity protected constructor(
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContentView(layout)
+
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.toolbar)) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(v.paddingLeft, systemBars.top, v.paddingRight, v.paddingBottom)
+            insets
+        }
+
         setSupportActionBar(findViewById(R.id.toolbar))
         supportActionBar?.apply {
             setTitle(this@AbstractPagesActivity.title)
@@ -44,8 +53,11 @@ abstract class AbstractPagesActivity protected constructor(
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        finish()
-        return true
+        if (item.itemId == android.R.id.home) {
+            finish()
+            return true
+        }
+        return super.onOptionsItemSelected(item)
     }
 
     private fun next() {

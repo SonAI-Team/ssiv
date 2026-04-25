@@ -32,7 +32,7 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
     private var decoder: BitmapRegionDecoder? = null
     private val decoderLock: ReadWriteLock = ReentrantReadWriteLock(true)
 
-    private val bitmapConfig: Bitmap.Config = bitmapConfig
+    private var bitmapConfig: Bitmap.Config = bitmapConfig
         ?: SubsamplingScaleImageView.getPreferredBitmapConfig()
         ?: Bitmap.Config.HARDWARE
 
@@ -94,6 +94,10 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
         } finally {
             decoderLock.writeLock().unlock()
         }
+    }
+
+    override fun setBitmapConfig(config: Bitmap.Config) {
+        this.bitmapConfig = config
     }
 
     private fun getDecodeLock(): Lock {

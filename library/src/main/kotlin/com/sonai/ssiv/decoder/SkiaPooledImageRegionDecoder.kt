@@ -45,7 +45,7 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
     private var decoderPool: DecoderPool? = DecoderPool()
     private val decoderLock: ReadWriteLock = ReentrantReadWriteLock(true)
 
-    private val bitmapConfig: Bitmap.Config = bitmapConfig
+    private var bitmapConfig: Bitmap.Config = bitmapConfig
         ?: SubsamplingScaleImageView.getPreferredBitmapConfig()
         ?: Bitmap.Config.RGB_565
 
@@ -166,6 +166,10 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         } finally {
             decoderLock.writeLock().unlock()
         }
+    }
+
+    override fun setBitmapConfig(config: Bitmap.Config) {
+        this.bitmapConfig = config
     }
 
     protected open fun allowAdditionalDecoder(numberOfDecoders: Int, fileLength: Long): Boolean {

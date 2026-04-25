@@ -15,6 +15,8 @@ import com.sonai.ssiv.test.eventhandling.EventHandlingActivity
 import com.sonai.ssiv.test.eventhandlingadvanced.AdvancedEventHandlingActivity
 import com.sonai.ssiv.test.extension.ExtensionActivity
 import androidx.activity.enableEdgeToEdge
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.sonai.ssiv.test.imagedisplay.ImageDisplayActivity
 import com.sonai.ssiv.test.viewpager.ViewPagerActivity
 
@@ -24,6 +26,13 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContentView(R.layout.main)
+
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(id.toolbar)) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(v.paddingLeft, systemBars.top, v.paddingRight, v.paddingBottom)
+            insets
+        }
+
         setSupportActionBar(findViewById(id.toolbar))
         findViewById<View>(id.basicFeatures).setOnClickListener(this)
         findViewById<View>(id.imageDisplay).setOnClickListener(this)
