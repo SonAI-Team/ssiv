@@ -23,10 +23,21 @@ android {
         }
     }
 
+    testOptions {
+        unitTests.all {
+            it.useJUnitPlatform()
+        }
+    }
+
     sourceSets {
         getByName("main") {
             assets.directories.add("assets")
         }
+    }
+    buildToolsVersion = "37.0.0"
+    compileOptions {
+        targetCompatibility = JavaVersion.VERSION_21
+        sourceCompatibility = JavaVersion.VERSION_21
     }
 }
 
@@ -35,4 +46,8 @@ dependencies {
     implementation(libs.androidx.annotation)
     implementation(libs.androidx.fragment)
     implementation(libs.androidx.appcompat)
+
+    testImplementation(libs.junit.jupiter.api)
+    testRuntimeOnly(libs.junit.jupiter.engine)
+    testImplementation(libs.junit.jupiter.params)
 }

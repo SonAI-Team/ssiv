@@ -3,14 +3,15 @@ import io.gitlab.arturbosch.detekt.Detekt
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.detekt)
+    id("tech.apter.junit5.jupiter.robolectric-extension-gradle-plugin") version "0.9.0"
 }
 
 tasks.withType<Detekt>().configureEach {
     jvmTarget = "21"
 }
 
-group = "com.davemorrissey.labs"
-version = "3.10.0"
+group = "com.sonai.ssiv"
+version = "1.0.0"
 
 android {
     namespace = "com.sonai.ssiv"
@@ -33,6 +34,14 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.txt")
         }
     }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+        unitTests.all {
+            it.useJUnitPlatform()
+        }
+    }
+    buildToolsVersion = "37.0.0"
 }
 
 configurations {
@@ -42,10 +51,19 @@ configurations {
 dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.annotation)
+    implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.exifinterface)
     implementation(libs.kotlinx.coroutines.android)
     
     "javadocs"(libs.androidx.annotation)
     "javadocs"(libs.androidx.exifinterface)
+
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.robolectric.extension)
+    testImplementation(libs.mockk)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.test.core.ktx)
 }
 

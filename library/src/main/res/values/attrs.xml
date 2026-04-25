@@ -8,6 +8,15 @@
         <attr name="zoomEnabled" format="boolean"/>
         <attr name="quickScaleEnabled" format="boolean"/>
         <attr name="tileBackgroundColor" format="color"/>
+        <attr name="doubleTapZoomStyle">
+            <enum name="zoomFocusFixed" value="1"/>
+            <enum name="zoomFocusCenter" value="2"/>
+            <enum name="zoomFocusCenterImmediate" value="3"/>
+        </attr>
+        <attr name="restoreStrategy">
+            <enum name="deferred" value="1"/>
+            <enum name="immediate" value="2"/>
+        </attr>
     </declare-styleable>
 
 </resources>
