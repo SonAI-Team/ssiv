@@ -2,7 +2,6 @@ package com.sonai.ssiv
 
 import android.content.ContentResolver
 import android.content.Context
-import android.database.Cursor
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -14,7 +13,6 @@ import android.graphics.PointF
 import android.graphics.Rect
 import android.graphics.RectF
 import android.net.Uri
-import android.provider.MediaStore
 import android.util.AttributeSet
 import android.util.Log
 import android.util.TypedValue
@@ -24,11 +22,9 @@ import android.view.View
 import androidx.annotation.AnyThread
 import androidx.core.content.withStyledAttributes
 import androidx.core.net.toUri
-import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import com.sonai.ssiv.R.styleable
-import com.sonai.ssiv.SubsamplingScaleImageView.Companion.EASE_IN_OUT_QUAD
 import com.sonai.ssiv.SubsamplingScaleImageView.Companion.ORIENTATION_USE_EXIF
 import com.sonai.ssiv.SubsamplingScaleImageView.Companion.PAN_LIMIT_INSIDE
 import com.sonai.ssiv.SubsamplingScaleImageView.Companion.SCALE_TYPE_CENTER_INSIDE
@@ -39,6 +35,8 @@ import com.sonai.ssiv.decoder.SSIVImageDecoder
 import com.sonai.ssiv.decoder.SkiaImageRegionDecoder
 import com.sonai.ssiv.decoder.SkiaSSIVImageDecoder
 import com.sonai.ssiv.internal.Anim
+import com.sonai.ssiv.internal.ExifUtils
+import com.sonai.ssiv.internal.MathUtils
 import com.sonai.ssiv.internal.Tile
 import com.sonai.ssiv.internal.TileManager
 import kotlinx.coroutines.CoroutineScope
@@ -59,7 +57,6 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
-import kotlin.math.sqrt
 
 /**
  * Displays an image subsampled as necessary to avoid loading too much image data into memory. After zooming in,
@@ -149,7 +146,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     private var doubleTapZoomDuration = DEFAULT_ANIM_DURATION
 
     // Current scale and scale at start of zoom
-    private var scale = 0f
+    internal var scale = 0f
     private var scaleStart = 0f
 
     // Screen coordinate of top-left corner of source image
@@ -206,7 +203,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     private var quickScaleVStart: PointF? = null
 
     // Scale and center animation tracking
-    private var anim: Anim? = null
+    internal var anim: Anim? = null
 
     // Whether a ready notification has been sent to subclasses
     private var readySent = false
@@ -522,7 +519,10 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                         )
                         val sCenterXEnd = (width / 2 - vTranslateEnd.x) / scale
                         val sCenterYEnd = (height / 2 - vTranslateEnd.y) / scale
-                        AnimationBuilder(PointF(sCenterXEnd, sCenterYEnd)).withEasing(EASE_OUT_QUAD)
+                        AnimationBuilder(
+                            this@SubsamplingScaleImageView,
+                            PointF(sCenterXEnd, sCenterYEnd)
+                        ).withEasing(EASE_OUT_QUAD)
                             .withPanLimited(false).withOrigin(ORIGIN_FLING).start()
                         return true
                     }
@@ -643,7 +643,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                     val dimensions = makeDecoder.init(context, source)
                     var sWidth = dimensions.x
                     var sHeight = dimensions.y
-                    val exifOrientation = getExifOrientation(context, sourceUri)
+                    val exifOrientation = ExifUtils.getExifOrientation(context, sourceUri)
                     sRegion?.let { region ->
                         region.left = max(0, region.left)
                         region.top = max(0, region.top)
@@ -742,7 +742,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                     val sourceUri = source.toString()
                     debug("BitmapLoadTask.doInBackground")
                     bitmap = decoderFactory.make().decode(context, source)
-                    getExifOrientation(context, sourceUri)
+                    ExifUtils.getExifOrientation(context, sourceUri)
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to load bitmap", e)
                     exception = e
@@ -849,7 +849,8 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         maxTouchCount = max(maxTouchCount, touchCount)
         if (touchCount >= 2) {
             if (zoomEnabled) {
-                val distance = distance(event.getX(0), event.getX(1), event.getY(0), event.getY(1))
+                val distance =
+                    MathUtils.distance(event.getX(0), event.getX(1), event.getY(0), event.getY(1))
                 scaleStart = scale
                 vDistStart = distance
                 vTranslateStart!!.set(vTranslate!!.x, vTranslate!!.y)
@@ -901,11 +902,12 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     }
 
     private fun handlePinch(event: MotionEvent): Boolean {
-        val vDistEnd = distance(event.getX(0), event.getX(1), event.getY(0), event.getY(1))
+        val vDistEnd =
+            MathUtils.distance(event.getX(0), event.getX(1), event.getY(0), event.getY(1))
         val vCenterEndX = (event.getX(0) + event.getX(1)) / 2
         val vCenterEndY = (event.getY(0) + event.getY(1)) / 2
 
-        if (zoomEnabled && (distance(
+        if (zoomEnabled && (MathUtils.distance(
                 vCenterStart!!.x,
                 vCenterEndX,
                 vCenterStart!!.y,
@@ -1041,11 +1043,13 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
 
     private fun onTouchActionUp(event: MotionEvent, touchCount: Int): Boolean {
         longClickJob?.cancel()
+        var consumed = false
         if (isQuickScaling) {
             isQuickScaling = false
             if (!quickScaleMoved) {
                 doubleTapZoom(quickScaleSCenter!!, vCenterStart!!)
             }
+            consumed = true
         }
         if (maxTouchCount > 0 && (isZooming || isPanning)) {
             if (isZooming && touchCount == 2) {
@@ -1065,14 +1069,17 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                 maxTouchCount = 0
             }
             refreshRequiredTiles(true)
-            return true
+            consumed = true
         }
         if (touchCount == 1) {
+            if (isZooming || isPanning || maxTouchCount > 0) {
+                consumed = true
+            }
             isZooming = false
             isPanning = false
             maxTouchCount = 0
         }
-        return true
+        return consumed
     }
 
     private fun requestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {
@@ -1103,11 +1110,11 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         if (doubleTapZoomStyle == ZOOM_FOCUS_CENTER_IMMEDIATE) {
             setScaleAndCenter(targetScale, sCenter)
         } else if (doubleTapZoomStyle == ZOOM_FOCUS_CENTER || !zoomIn || !panEnabled) {
-            AnimationBuilder(targetScale, sCenter).withInterruptible(false)
+            AnimationBuilder(this, targetScale, sCenter).withInterruptible(false)
                 .withDuration(doubleTapZoomDuration.toLong()).withOrigin(ORIGIN_DOUBLE_TAP_ZOOM)
                 .start()
         } else if (doubleTapZoomStyle == ZOOM_FOCUS_FIXED) {
-            AnimationBuilder(targetScale, sCenter, vFocus).withInterruptible(false)
+            AnimationBuilder(this, targetScale, sCenter, vFocus).withInterruptible(false)
                 .withDuration(doubleTapZoomDuration.toLong()).withOrigin(ORIGIN_DOUBLE_TAP_ZOOM)
                 .start()
         }
@@ -1717,7 +1724,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
      * @param center Whether the image should be centered in the dimension it's too small to fill. While animating this can be false to avoid changes in direction as bounds are reached.
      * @param sat The scale we want and the translation we're aiming for. The values are adjusted to be valid.
      */
-    private fun fitToBounds(center: Boolean, sat: ScaleAndTranslate) {
+    internal fun fitToBounds(center: Boolean, sat: ScaleAndTranslate) {
         var mutableCenter = center
         if (panLimit == PAN_LIMIT_OUTSIDE && isReady) {
             mutableCenter = false
@@ -1777,7 +1784,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
      * is set so one dimension fills the view and the image is centered on the other dimension.
      * @param center Whether the image should be centered in the dimension it's too small to fill. While animating this can be false to avoid changes in direction as bounds are reached.
      */
-    private fun fitToBounds(center: Boolean) {
+    internal fun fitToBounds(center: Boolean) {
         var init = false
         if (vTranslate == null) {
             init = true
@@ -1939,72 +1946,6 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         }
     }
 
-    /**
-     * Helper method for load tasks. Examines the EXIF info on the image file to determine the orientation.
-     * This will only work for external files, not assets, resources or other URIs.
-     */
-    @AnyThread
-    private fun getExifOrientation(context: Context, sourceUri: String): Int {
-        var exifOrientation = ORIENTATION_0
-        if (sourceUri.startsWith(ContentResolver.SCHEME_CONTENT)) {
-            var cursor: Cursor? = null
-            try {
-                val columns = arrayOf(MediaStore.Images.Media.ORIENTATION)
-                cursor = context.contentResolver.query(sourceUri.toUri(), columns, null, null, null)
-                if (cursor != null) {
-                    if (cursor.moveToFirst()) {
-                        val orientationValue = cursor.getInt(0)
-                        if (VALID_ORIENTATIONS.contains(orientationValue) && orientationValue != ORIENTATION_USE_EXIF) {
-                            exifOrientation = orientationValue
-                        } else {
-                            Log.w(TAG, "Unsupported orientation: $orientationValue")
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Could not get orientation of image from media store")
-            } finally {
-                cursor?.close()
-            }
-        } else if (sourceUri.startsWith(ImageSource.FILE_SCHEME) && !sourceUri.startsWith(
-                ImageSource.ASSET_SCHEME
-            )
-        ) {
-            try {
-                val exifInterface =
-                    ExifInterface(sourceUri.substring(ImageSource.FILE_SCHEME.length - 1))
-                val orientationAttr = exifInterface.getAttributeInt(
-                    ExifInterface.TAG_ORIENTATION,
-                    ExifInterface.ORIENTATION_NORMAL
-                )
-                when (orientationAttr) {
-                    ExifInterface.ORIENTATION_NORMAL, ExifInterface.ORIENTATION_UNDEFINED -> {
-                        exifOrientation = ORIENTATION_0
-                    }
-
-                    ExifInterface.ORIENTATION_ROTATE_90 -> {
-                        exifOrientation = ORIENTATION_90
-                    }
-
-                    ExifInterface.ORIENTATION_ROTATE_180 -> {
-                        exifOrientation = ORIENTATION_180
-                    }
-
-                    ExifInterface.ORIENTATION_ROTATE_270 -> {
-                        exifOrientation = ORIENTATION_270
-                    }
-
-                    else -> {
-                        Log.w(TAG, "Unsupported EXIF orientation: $orientationAttr")
-                    }
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Could not get EXIF orientation of image")
-            }
-        }
-        return exifOrientation
-    }
-
 
     /**
      * Set scale, center and orientation from saved state.
@@ -2114,14 +2055,6 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         }
     }
 
-    /**
-     * Pythagoras distance between two points.
-     */
-    private fun distance(x0: Float, x1: Float, y0: Float, y1: Float): Float {
-        val x = x0 - x1
-        val y = y0 - y1
-        return sqrt((x * x + y * y).toDouble()).toFloat()
-    }
 
     /**
      * Releases all resources the view is using and resets the state, nulling any fields that use significant memory.
@@ -2331,7 +2264,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
      * Given a requested source center and scale, calculate what the actual center will have to be to keep the image in
      * pan limits, keeping the requested center as near to the middle of the screen as allowed.
      */
-    private fun limitedSCenter(
+    internal fun limitedSCenter(
         sCenterX: Float,
         sCenterY: Float,
         scale: Float,
@@ -2369,7 +2302,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     /**
      * Adjust a requested scale to be within the allowed limits.
      */
-    private fun limitedScale(targetScale: Float): Float {
+    internal fun limitedScale(targetScale: Float): Float {
         var mutableTargetScale = max(minScale(), targetScale)
         mutableTargetScale = min(maxScale, mutableTargetScale)
         return mutableTargetScale
@@ -2386,42 +2319,12 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
      */
     private fun ease(type: Int, time: Long, from: Float, change: Float, duration: Long): Float {
         return when (type) {
-            EASE_IN_OUT_QUAD -> easeInOutQuad(time, from, change, duration)
-            EASE_OUT_QUAD -> easeOutQuad(time, from, change, duration)
+            EASE_IN_OUT_QUAD -> MathUtils.easeInOutQuad(time, from, change, duration)
+            EASE_OUT_QUAD -> MathUtils.easeOutQuad(time, from, change, duration)
             else -> error("Unexpected easing type: $type")
         }
     }
 
-    /**
-     * Quadratic easing for fling. With thanks to Robert Penner - http://gizma.com/easing/
-     * @param time Elapsed time
-     * @param from Start value
-     * @param change Target value
-     * @param duration Anm duration
-     * @return Current value
-     */
-    private fun easeOutQuad(time: Long, from: Float, change: Float, duration: Long): Float {
-        val progress = time.toFloat() / duration.toFloat()
-        return -change * progress * (progress - 2) + from
-    }
-
-    /**
-     * Quadratic easing for scale and center animations. With thanks to Robert Penner - http://gizma.com/easing/
-     * @param time Elapsed time
-     * @param from Start value
-     * @param change Target value
-     * @param duration Anm duration
-     * @return Current value
-     */
-    private fun easeInOutQuad(time: Long, from: Float, change: Float, duration: Long): Float {
-        var timeF = time / (duration / 2f)
-        return if (timeF < 1) {
-            change / 2f * timeF * timeF + from
-        } else {
-            timeF--
-            -change / 2f * (timeF * (timeF - 2) - 1) + from
-        }
-    }
 
     /**
      * Debug logger
@@ -2986,20 +2889,21 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
      * image is instead animated to move the center point as near to the center of the screen as is allowed - it's
      * guaranteed to be on screen.
      * @param sCenter Target center point
-     * @return [AnimationBuilder] instance. Call [SubsamplingScaleImageView.AnimationBuilder.start] to start the anim.
+     * @return [AnimationBuilder] instance. Call [SubsamplingScaleImageView.//AnimationBuilder.start] to start the anim.
      */
     fun animateCenter(sCenter: PointF): AnimationBuilder? {
-        return if (!isReady) null else AnimationBuilder(sCenter)
+        return if (!isReady) null else AnimationBuilder(this, sCenter)
     }
 
     /**
      * Creates a scale animation builder, that when started will animate a zoom in or out. If this moved the image
      * beyond the panning limits, the image is automatically panned during the animation.
      * @param scale Target scale.
-     * @return [AnimationBuilder] instance. Call [SubsamplingScaleImageView.AnimationBuilder.start] to start the anim.
+     * @return [AnimationBuilder] instance. Call [SubsamplingScaleImageView.//AnimationBuilder.start] to start the anim.
      */
     fun animateScale(scale: Float): AnimationBuilder? {
-        return if (!isReady) null else AnimationBuilder(scale)
+        val sCenter = center ?: return null
+        return if (!isReady) null else AnimationBuilder(this, scale, sCenter)
     }
 
     /**
@@ -3007,168 +2911,11 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
      * beyond the panning limits, the image is automatically panned during the animation.
      * @param scale Target scale.
      * @param sCenter Target source center.
-     * @return [AnimationBuilder] instance. Call [SubsamplingScaleImageView.AnimationBuilder.start] to start the anim.
+     * @return [AnimationBuilder] instance. Call [SubsamplingScaleImageView.//AnimationBuilder.start] to start the anim.
      */
     fun animateScaleAndCenter(scale: Float, sCenter: PointF): AnimationBuilder? {
-        return if (!isReady) null else AnimationBuilder(scale, sCenter)
+        return if (!isReady) null else AnimationBuilder(this, scale, sCenter)
     }
-
-    /**
-     * Builder class used to set additional options for a scale animation. Create an instance using [animateScale],
-     * then set your options and call [start].
-     */
-    inner class AnimationBuilder {
-
-        private val targetScale: Float
-        private val targetSCenter: PointF
-        private val vFocus: PointF?
-        private var duration: Long = DEFAULT_ANIM_DURATION.toLong()
-        private var easing = EASE_IN_OUT_QUAD
-        private var origin = ORIGIN_ANIM
-        private var interruptible = true
-        private var panLimited = true
-        private var listener: OnAnimationEventListener? = null
-
-        constructor(sCenter: PointF) {
-            this.targetScale = scale
-            this.targetSCenter = sCenter
-            this.vFocus = null
-        }
-
-        constructor(scale: Float) {
-            this.targetScale = scale
-            this.targetSCenter = center!!
-            this.vFocus = null
-        }
-
-        constructor(scale: Float, sCenter: PointF) {
-            this.targetScale = scale
-            this.targetSCenter = sCenter
-            this.vFocus = null
-        }
-
-        constructor(scale: Float, sCenter: PointF, vFocus: PointF) {
-            this.targetScale = scale
-            this.targetSCenter = sCenter
-            this.vFocus = vFocus
-        }
-
-        /**
-         * Desired duration of the anim in milliseconds. Default is 500.
-         * @param duration duration in milliseconds.
-         * @return this builder for method chaining.
-         */
-        fun withDuration(duration: Long): AnimationBuilder {
-            this.duration = duration
-            return this
-        }
-
-        /**
-         * Whether the animation can be interrupted with a touch. Default is true.
-         * @param interruptible interruptible flag.
-         * @return this builder for method chaining.
-         */
-        fun withInterruptible(interruptible: Boolean): AnimationBuilder {
-            this.interruptible = interruptible
-            return this
-        }
-
-        /**
-         * Set the easing style. See static fields. [EASE_IN_OUT_QUAD] is recommended, and the default.
-         * @param easing easing style.
-         * @return this builder for method chaining.
-         */
-        fun withEasing(easing: Int): AnimationBuilder {
-            require(VALID_EASING_STYLES.contains(easing)) { "Unknown easing type: $easing" }
-            this.easing = easing
-            return this
-        }
-
-        /**
-         * Add an animation event listener.
-         * @param listener The listener.
-         * @return this builder for method chaining.
-         */
-        fun withOnAnimationEventListener(listener: OnAnimationEventListener?): AnimationBuilder {
-            this.listener = listener
-            return this
-        }
-
-        /**
-         * Only for internal use. When set to true, the animation proceeds towards the actual end point - the nearest
-         * point to the center allowed by pan limits. When false, animation is in the direction of the requested end
-         * point and is stopped when the limit for each axis is reached. The latter behavior is used for flings but
-         * nothing else.
-         */
-        internal fun withPanLimited(panLimited: Boolean): AnimationBuilder {
-            this.panLimited = panLimited
-            return this
-        }
-
-        /**
-         * Only for internal use. Indicates what caused the animation.
-         */
-        internal fun withOrigin(origin: Int): AnimationBuilder {
-            this.origin = origin
-            return this
-        }
-
-        /**
-         * Starts the animation.
-         */
-        fun start() {
-            if (anim != null && anim!!.listener != null) {
-                try {
-                    anim!!.listener!!.onInterruptedByNewAnim()
-                } catch (e: Exception) {
-                    Log.w(TAG, "Error thrown by animation listener", e)
-                }
-            }
-
-            val vxCenter = paddingLeft + (width - paddingRight - paddingLeft) / 2
-            val vyCenter = paddingTop + (height - paddingBottom - paddingTop) / 2
-            val targetScale = limitedScale(this.targetScale)
-            val targetSCenter = if (panLimited) limitedSCenter(
-                this.targetSCenter.x,
-                this.targetSCenter.y,
-                targetScale,
-                PointF()
-            ) else this.targetSCenter
-            anim = Anim()
-            anim!!.scaleStart = scale
-            anim!!.scaleEnd = targetScale
-            anim!!.time = System.currentTimeMillis()
-            anim!!.sCenterEndRequested = targetSCenter
-            anim!!.sCenterStart = center
-            anim!!.sCenterEnd = targetSCenter
-            anim!!.vFocusStart = sourceToViewCoord(targetSCenter)
-            anim!!.vFocusEnd = PointF(vxCenter.toFloat(), vyCenter.toFloat())
-            anim!!.duration = duration
-            anim!!.interruptible = interruptible
-            anim!!.easing = easing
-            anim!!.origin = origin
-            anim!!.time = System.currentTimeMillis()
-            anim!!.listener = listener
-
-            if (vFocus != null) {
-// Calculate where translation will be at the end of the anim
-                val vTranslateXEnd = vFocus.x - targetScale * anim!!.sCenterStart!!.x
-                val vTranslateYEnd = vFocus.y - targetScale * anim!!.sCenterStart!!.y
-                val satEnd = ScaleAndTranslate(targetScale, PointF(vTranslateXEnd, vTranslateYEnd))
-// Fit the end translation into bounds
-                fitToBounds(true, satEnd)
-// Adjust the position of the focus point at end so image will be in bounds
-                anim!!.vFocusEnd = PointF(
-                    vFocus.x + (satEnd.vTranslate.x - vTranslateXEnd),
-                    vFocus.y + (satEnd.vTranslate.y - vTranslateYEnd)
-                )
-            }
-
-            invalidate()
-        }
-
-    }
-
 
     companion object {
         private val TAG = SubsamplingScaleImageView::class.java.simpleName
