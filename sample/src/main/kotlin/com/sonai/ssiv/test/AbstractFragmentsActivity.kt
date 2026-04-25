@@ -2,13 +2,13 @@ package com.sonai.ssiv.test
 
 import android.os.Bundle
 import android.view.MenuItem
-import androidx.fragment.app.FragmentActivity
+import androidx.appcompat.app.AppCompatActivity
 
 abstract class AbstractFragmentsActivity protected constructor(
     private val title: Int,
     private val layout: Int,
     private val notes: List<Page>
-) : FragmentActivity() {
+) : AppCompatActivity() {
 
     private var page: Int = 0
 
@@ -17,7 +17,8 @@ abstract class AbstractFragmentsActivity protected constructor(
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(layout)
-        actionBar?.apply {
+        setSupportActionBar(findViewById(R.id.toolbar))
+        supportActionBar?.apply {
             setTitle(this@AbstractFragmentsActivity.title)
             setDisplayHomeAsUpEnabled(true)
         }
@@ -55,7 +56,7 @@ abstract class AbstractFragmentsActivity protected constructor(
         if (page > notes.size - 1) {
             return
         }
-        actionBar?.subtitle = getString(notes[page].subtitle)
+        supportActionBar?.subtitle = getString(notes[page].subtitle)
         onPageChanged(page)
     }
 

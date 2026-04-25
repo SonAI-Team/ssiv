@@ -1,18 +1,49 @@
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android" style="@style/fill">
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    style="@style/fill"
+    android:background="?attr/colorSurface">
 
-    <RelativeLayout style="@style/footer" android:id="@+id/footer">
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
 
-        <ImageView style="@style/previousButton" android:id="@+id/previous" android:contentDescription="@string/button.previous"/>
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize" />
 
-        <ImageView style="@style/nextButton" android:id="@+id/next" android:contentDescription="@string/button.next"/>
+    </com.google.android.material.appbar.AppBarLayout>
 
-        <TextView style="@style/footerNote"
-                android:id="@+id/note"
-                android:layout_toStartOf="@id/next"
-                android:layout_toEndOf="@id/previous"/>
+    <RelativeLayout
+        android:id="@+id/footer"
+        style="@style/footer"
+        android:layout_alignParentBottom="true">
+
+        <ImageButton
+            android:id="@+id/previous"
+            style="@style/previousButton"
+            android:contentDescription="@string/button.previous"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+
+        <ImageButton
+            android:id="@+id/next"
+            style="@style/nextButton"
+            android:contentDescription="@string/button.next"
+            android:background="?attr/selectableItemBackgroundBorderless" />
+
+        <TextView
+            android:id="@+id/note"
+            style="@style/footerNote"
+            android:layout_toStartOf="@id/next"
+            android:layout_toEndOf="@id/previous" />
 
     </RelativeLayout>
 
-    <com.sonai.ssiv.SubsamplingScaleImageView style="@style/mainPanel" android:id="@+id/imageView"/>
+    <com.sonai.ssiv.SubsamplingScaleImageView
+        android:id="@+id/imageView"
+        style="@style/mainPanel"
+        android:layout_below="@id/appbar"
+        android:layout_above="@id/footer" />
 
 </RelativeLayout>

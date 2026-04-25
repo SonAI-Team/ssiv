@@ -4,13 +4,13 @@ import android.os.Bundle
 import android.view.MenuItem
 import android.view.View
 import android.widget.TextView
-import androidx.fragment.app.FragmentActivity
+import androidx.appcompat.app.AppCompatActivity
 
 abstract class AbstractPagesActivity protected constructor(
     private val title: Int,
     private val layout: Int,
     private val notes: List<Page>
-) : FragmentActivity() {
+) : AppCompatActivity() {
 
     private var pageNum: Int = 0
 
@@ -19,7 +19,8 @@ abstract class AbstractPagesActivity protected constructor(
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(layout)
-        actionBar?.apply {
+        setSupportActionBar(findViewById(R.id.toolbar))
+        supportActionBar?.apply {
             setTitle(this@AbstractPagesActivity.title)
             setDisplayHomeAsUpEnabled(true)
         }
@@ -59,7 +60,7 @@ abstract class AbstractPagesActivity protected constructor(
         if (pageNum > notes.size - 1) {
             return
         }
-        actionBar?.subtitle = getString(notes[pageNum].subtitle)
+        supportActionBar?.subtitle = getString(notes[pageNum].subtitle)
         findViewById<TextView>(R.id.note).setText(notes[pageNum].text)
         findViewById<View>(R.id.next).visibility = if (pageNum >= notes.size - 1) View.INVISIBLE else View.VISIBLE
         findViewById<View>(R.id.previous).visibility = if (pageNum <= 0) View.INVISIBLE else View.VISIBLE

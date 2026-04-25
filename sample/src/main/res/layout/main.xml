@@ -1,48 +1,141 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" style="@style/fill">
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/colorSurface">
 
-    <LinearLayout android:orientation="vertical"
-                  android:layout_width="fill_parent"
-                  android:layout_height="wrap_content">
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:liftOnScroll="true">
+
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            app:title="@string/main.title"
+            app:titleCentered="true" />
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
         <LinearLayout
-                android:layout_width="300dp"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginTop="10dp"
-                android:layout_marginBottom="10dp"
-                android:orientation="vertical">
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
 
-            <View style="@style/indexDivider"/>
-            <TextView style="@style/indexLink" android:id="@+id/basicFeatures" android:text="@string/basic.link"/>
-            <View style="@style/indexDivider"/>
-            <TextView style="@style/indexLink" android:id="@+id/imageDisplay" android:text="@string/display.link"/>
-            <View style="@style/indexDivider"/>
-            <TextView style="@style/indexLink" android:id="@+id/eventHandling" android:text="@string/event.link"/>
-            <View style="@style/indexDivider"/>
-            <TextView style="@style/indexLink" android:id="@+id/advancedEventHandling" android:text="@string/advancedevent.link"/>
-            <View style="@style/indexDivider"/>
-            <TextView style="@style/indexLink" android:id="@+id/viewPagerGalleries" android:text="@string/pager.link"/>
-            <View style="@style/indexDivider"/>
-            <TextView style="@style/indexLink" android:id="@+id/animation" android:text="@string/animation.link"/>
-            <View style="@style/indexDivider"/>
-            <TextView style="@style/indexLink" android:id="@+id/extension" android:text="@string/extension.link"/>
-            <View style="@style/indexDivider"/>
-            <TextView style="@style/indexLink" android:id="@+id/configuration" android:text="@string/configuration.link"/>
-            <View style="@style/indexDivider"/>
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="24dp"
+                app:cardElevation="0dp"
+                app:strokeColor="?attr/colorOutlineVariant"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/basicFeatures"
+                        style="@style/indexLink"
+                        android:text="@string/basic.link"
+                        android:drawablePadding="16dp"
+                        app:drawableStartCompat="@android:drawable/ic_menu_edit"
+                        app:drawableTint="?attr/colorPrimary" />
+
+                    <View style="@style/indexDivider" />
+
+                    <TextView
+                        android:id="@+id/imageDisplay"
+                        style="@style/indexLink"
+                        android:text="@string/display.link"
+                        android:drawablePadding="16dp"
+                        app:drawableStartCompat="@android:drawable/ic_menu_gallery"
+                        app:drawableTint="?attr/colorPrimary" />
+
+                    <View style="@style/indexDivider" />
+
+                    <TextView
+                        android:id="@+id/eventHandling"
+                        style="@style/indexLink"
+                        android:text="@string/event.link"
+                        android:drawablePadding="16dp"
+                        app:drawableStartCompat="@android:drawable/ic_menu_view"
+                        app:drawableTint="?attr/colorPrimary" />
+
+                    <View style="@style/indexDivider" />
+
+                    <TextView
+                        android:id="@+id/advancedEventHandling"
+                        style="@style/indexLink"
+                        android:text="@string/advancedevent.link"
+                        android:drawablePadding="16dp"
+                        app:drawableStartCompat="@android:drawable/ic_menu_manage"
+                        app:drawableTint="?attr/colorPrimary" />
+
+                    <View style="@style/indexDivider" />
+
+                    <TextView
+                        android:id="@+id/viewPagerGalleries"
+                        style="@style/indexLink"
+                        android:text="@string/pager.link"
+                        android:drawablePadding="16dp"
+                        app:drawableStartCompat="@android:drawable/ic_menu_slideshow"
+                        app:drawableTint="?attr/colorPrimary" />
+
+                    <View style="@style/indexDivider" />
+
+                    <TextView
+                        android:id="@+id/animation"
+                        style="@style/indexLink"
+                        android:text="@string/animation.link"
+                        android:drawablePadding="16dp"
+                        app:drawableStartCompat="@android:drawable/ic_media_play"
+                        app:drawableTint="?attr/colorPrimary" />
+
+                    <View style="@style/indexDivider" />
+
+                    <TextView
+                        android:id="@+id/extension"
+                        style="@style/indexLink"
+                        android:text="@string/extension.link"
+                        android:drawablePadding="16dp"
+                        app:drawableStartCompat="@android:drawable/ic_menu_add"
+                        app:drawableTint="?attr/colorPrimary" />
+
+                    <View style="@style/indexDivider" />
+
+                    <TextView
+                        android:id="@+id/configuration"
+                        style="@style/indexLink"
+                        android:text="@string/configuration.link"
+                        android:drawablePadding="16dp"
+                        app:drawableStartCompat="@android:drawable/ic_menu_preferences"
+                        app:drawableTint="?attr/colorPrimary" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/github"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="32dp"
+                android:layout_marginBottom="32dp"
+                android:text="@string/main.viewongithub"
+                app:icon="@android:drawable/ic_menu_info_details" />
 
         </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
 
-        <Button
-                android:id="@+id/github"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_margin="10dp"
-                android:layout_gravity="center_horizontal"
-                android:paddingLeft="16dp"
-                android:paddingRight="16dp"
-                android:textSize="16sp"
-                android:text="@string/main.viewongithub"/>
-
-    </LinearLayout>
-</ScrollView>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

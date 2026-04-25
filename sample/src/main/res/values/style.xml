@@ -1,28 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="sampleTheme" parent="@android:style/Theme.Holo">
-        <item name="android:actionBarStyle">@style/sampleActionBar</item>
-        <item name="android:windowBackground">@color/background</item>
-    </style>
-
-    <style name="sampleActionBar" parent="@android:style/Widget.Holo.ActionBar">
-        <item name="android:background">@color/actionBarBackground</item>
+    <style name="sampleTheme" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#6750A4</item>
+        <item name="colorSecondary">#625B71</item>
+        <item name="android:windowBackground">?attr/colorSurface</item>
     </style>
 
     <style name="indexDivider">
         <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">1px</item>
-        <item name="android:background">#333333</item>
+        <item name="android:layout_height">1dp</item>
+        <item name="android:background">?attr/colorOutlineVariant</item>
     </style>
 
     <style name="indexLink">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:background">@drawable/buttonstate_transparent</item>
-        <item name="android:gravity">center_horizontal</item>
-        <item name="android:padding">10dp</item>
-        <item name="android:textSize">18sp</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:padding">16dp</item>
+        <item name="android:textAppearance">?attr/textAppearanceListItem</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
     </style>
 
     <style name="fill">
@@ -41,28 +39,26 @@
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_alignParentBottom">true</item>
-        <item name="android:background">#333</item>
+        <item name="android:background">?attr/colorSurfaceContainer</item>
     </style>
 
     <style name="footerNote">
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_centerVertical">true</item>
-        <item name="android:padding">10dp</item>
+        <item name="android:padding">16dp</item>
         <item name="android:textSize">14sp</item>
-        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
     </style>
 
     <style name="footerButton">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_centerVertical">true</item>
-        <item name="android:background">@drawable/buttonstate_transparent</item>
-        <item name="android:paddingLeft">8dp</item>
-        <item name="android:paddingRight">8dp</item>
-        <item name="android:paddingTop">18dp</item>
-        <item name="android:paddingBottom">18dp</item>
+        <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+        <item name="android:padding">12dp</item>
         <item name="android:src">@drawable/previous</item>
+        <item name="android:tint">?attr/colorOnSurface</item>
     </style>
 
     <style name="previousButton" parent="@style/footerButton">

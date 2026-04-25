@@ -4,7 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import androidx.activity.ComponentActivity
+import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.core.net.toUri
 import com.sonai.ssiv.test.R.id
@@ -17,12 +17,12 @@ import com.sonai.ssiv.test.extension.ExtensionActivity
 import com.sonai.ssiv.test.imagedisplay.ImageDisplayActivity
 import com.sonai.ssiv.test.viewpager.ViewPagerActivity
 
-class MainActivity : ComponentActivity(), View.OnClickListener {
+class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        actionBar?.setTitle(R.string.main_title)
         setContentView(R.layout.main)
+        setSupportActionBar(findViewById(id.toolbar))
         findViewById<View>(id.basicFeatures).setOnClickListener(this)
         findViewById<View>(id.imageDisplay).setOnClickListener(this)
         findViewById<View>(id.eventHandling).setOnClickListener(this)
