@@ -47,9 +47,6 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
                 val assetName = uriString.substring(ASSET_PREFIX.length)
                 BitmapRegionDecoder.newInstance(context.assets.open(assetName, AssetManager.ACCESS_RANDOM))
             }
-            uriString.startsWith(FILE_PREFIX) -> {
-                BitmapRegionDecoder.newInstance(uriString.substring(FILE_PREFIX.length))
-            }
             else -> {
                 context.contentResolver.openInputStream(uri)?.use {
                     BitmapRegionDecoder.newInstance(it)

@@ -38,9 +38,6 @@ class SkiaSSIVImageDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null
                     BitmapFactory.decodeStream(it, null, options)
                 }
             }
-            uriString.startsWith(FILE_PREFIX) -> {
-                BitmapFactory.decodeFile(uriString.substring(FILE_PREFIX.length), options)
-            }
             else -> {
                 context.contentResolver.openInputStream(uri)?.use { 
                     BitmapFactory.decodeStream(it, null, options)

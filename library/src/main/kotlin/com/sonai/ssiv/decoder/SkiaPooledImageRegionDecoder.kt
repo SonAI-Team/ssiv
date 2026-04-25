@@ -15,7 +15,6 @@ import android.util.Log
 import androidx.annotation.Keep
 import androidx.core.text.isDigitsOnly
 import com.sonai.ssiv.SubsamplingScaleImageView
-import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicBoolean
@@ -100,12 +99,6 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
                 val assetName = uriString.substring(ASSET_PREFIX.length)
                 runCatching { context.assets.openFd(assetName).use { fileLength = it.length } }
                 BitmapRegionDecoder.newInstance(context.assets.open(assetName, AssetManager.ACCESS_RANDOM))
-            }
-            uriString.startsWith(FILE_PREFIX) -> {
-                val path = uriString.substring(FILE_PREFIX.length)
-                val file = File(path)
-                if (file.exists()) fileLength = file.length()
-                BitmapRegionDecoder.newInstance(path)
             }
             else -> {
                 val contentResolver = context.contentResolver
