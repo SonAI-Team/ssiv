@@ -2957,21 +2957,11 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     }
 
     /**
-     * Add a listener allowing notification of load and error events. Extend [DefaultOnImageEventListener]
-     * to simplify implementation.
+     * Set a listener allowing notification of load and error events.
      * @param onImageEventListener an [OnImageEventListener] instance.
      */
     fun setOnImageEventListener(onImageEventListener: OnImageEventListener?) {
         this.onImageEventListener = onImageEventListener
-    }
-
-    /**
-     * Add a listener for pan and zoom events. Extend [DefaultOnStateChangedListener] to simplify
-     * implementation.
-     * @param onStateChangedListener an [OnStateChangedListener] instance.
-     */
-    fun setOnStateChangedListener(onStateChangedListener: OnStateChangedListener?) {
-        this.onStateChangedListener = onStateChangedListener
     }
 
     /**
@@ -2991,6 +2981,14 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     }
 
     /**
+     * Set a listener for pan and zoom events.
+     * @param onStateChangedListener an [OnStateChangedListener] instance.
+     */
+    fun setOnStateChangedListener(onStateChangedListener: OnStateChangedListener?) {
+        this.onStateChangedListener = onStateChangedListener
+    }
+
+    /**
      * Add a listener for pan and zoom events.
      * @param onStateChangedListener an [OnStateChangedListener] instance.
      */
@@ -3004,6 +3002,39 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
      */
     fun removeOnStateChangedListener(onStateChangedListener: OnStateChangedListener) {
         this.onStateChangedListeners.remove(onStateChangedListener)
+    }
+
+    /**
+     * Set a lambda to be called when the scale has changed.
+     */
+    fun onScaleChanged(listener: (newScale: Float, origin: Int) -> Unit) {
+        addOnStateChangedListener(object : OnStateChangedListener {
+            override fun onScaleChanged(newScale: Float, origin: Int) {
+                listener(newScale, origin)
+            }
+        })
+    }
+
+    /**
+     * Set a lambda to be called when the source center has been changed.
+     */
+    fun onCenterChanged(listener: (newCenter: PointF?, origin: Int) -> Unit) {
+        addOnStateChangedListener(object : OnStateChangedListener {
+            override fun onCenterChanged(newCenter: PointF?, origin: Int) {
+                listener(newCenter, origin)
+            }
+        })
+    }
+
+    /**
+     * Set a lambda to be called when the image is ready.
+     */
+    fun onImageReady(listener: () -> Unit) {
+        addOnImageEventListener(object : OnImageEventListener {
+            override fun onReady() {
+                listener()
+            }
+        })
     }
 
     /**

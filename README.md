@@ -55,3 +55,6 @@ By leveraging subsampling and tiling, the view loads a low-resolution base layer
 ## About
 
 Copyright 2026 SonAI-Team. Licensed under the Apache License, Version 2.0. Attribution is not required but greatly appreciated. Star the repo if you find it useful!
+
+---
+*Created with focus by the SonAI Team.*
