@@ -3,6 +3,7 @@ package com.sonai.ssiv.test.basicfeatures
 import android.os.Bundle
 import com.sonai.ssiv.ImageSource
 import com.sonai.ssiv.SubsamplingScaleImageView
+import com.sonai.ssiv.ai.MediaPipeTileEnhancer
 import com.sonai.ssiv.test.AbstractPagesActivity
 import com.sonai.ssiv.test.Page
 import com.sonai.ssiv.test.R
@@ -20,6 +21,7 @@ class BasicFeaturesActivity : AbstractPagesActivity(
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val view = findViewById<SubsamplingScaleImageView>(R.id.imageView)
+        view.setTileEnhancer(MediaPipeTileEnhancer(this, "assets/model.tflite"))
         view.setImage(ImageSource.asset("sanmartino.jpg"))
     }
 }
