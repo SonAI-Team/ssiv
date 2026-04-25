@@ -28,7 +28,9 @@ class ViewPagerActivity : AbstractPagesActivity(
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                val viewPager = findViewById<ViewPager2>(if (getPage() == 0) R.id.horizontal_pager else R.id.vertical_pager)
+                val viewPager = findViewById<ViewPager2>(
+                    if (getPage() == 0) R.id.horizontal_pager else R.id.vertical_pager
+                )
                 if (viewPager.currentItem == 0) {
                     isEnabled = false
                     onBackPressedDispatcher.onBackPressed()
@@ -50,7 +52,8 @@ class ViewPagerActivity : AbstractPagesActivity(
         }
     }
 
-    private class ScreenSlidePagerAdapter(activity: FragmentActivity) : FragmentStateAdapter(activity) {
+    private class ScreenSlidePagerAdapter(activity: FragmentActivity) :
+        FragmentStateAdapter(activity) {
         override fun getItemCount(): Int = IMAGES.size
 
         override fun createFragment(position: Int): Fragment {

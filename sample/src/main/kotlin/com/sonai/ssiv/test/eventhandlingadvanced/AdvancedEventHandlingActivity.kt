@@ -25,42 +25,67 @@ class AdvancedEventHandlingActivity : AbstractPagesActivity(
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val imageView = findViewById<SubsamplingScaleImageView>(R.id.imageView)
-        val gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                if (imageView.isReady) {
-                    val sCoord = imageView.viewToSourceCoord(e.x, e.y)
-                    sCoord?.let {
-                        Toast.makeText(applicationContext, "Single tap: ${it.x.toInt()}, ${it.y.toInt()}", Toast.LENGTH_SHORT).show()
+        val gestureDetector =
+            GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+                override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                    if (imageView.isReady) {
+                        val sCoord = imageView.viewToSourceCoord(e.x, e.y)
+                        sCoord?.let {
+                            Toast.makeText(
+                                applicationContext,
+                                "Single tap: ${it.x.toInt()}, ${it.y.toInt()}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    } else {
+                        Toast.makeText(
+                            applicationContext,
+                            "Single tap: Image not ready",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
-                } else {
-                    Toast.makeText(applicationContext, "Single tap: Image not ready", Toast.LENGTH_SHORT).show()
+                    return true
                 }
-                return true
-            }
 
-            override fun onLongPress(e: MotionEvent) {
-                if (imageView.isReady) {
-                    val sCoord = imageView.viewToSourceCoord(e.x, e.y)
-                    sCoord?.let {
-                        Toast.makeText(applicationContext, "Long press: ${it.x.toInt()}, ${it.y.toInt()}", Toast.LENGTH_SHORT).show()
+                override fun onLongPress(e: MotionEvent) {
+                    if (imageView.isReady) {
+                        val sCoord = imageView.viewToSourceCoord(e.x, e.y)
+                        sCoord?.let {
+                            Toast.makeText(
+                                applicationContext,
+                                "Long press: ${it.x.toInt()}, ${it.y.toInt()}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    } else {
+                        Toast.makeText(
+                            applicationContext,
+                            "Long press: Image not ready",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
-                } else {
-                    Toast.makeText(applicationContext, "Long press: Image not ready", Toast.LENGTH_SHORT).show()
                 }
-            }
 
-            override fun onDoubleTap(e: MotionEvent): Boolean {
-                if (imageView.isReady) {
-                    val sCoord = imageView.viewToSourceCoord(e.x, e.y)
-                    sCoord?.let {
-                        Toast.makeText(applicationContext, "Double tap: ${it.x.toInt()}, ${it.y.toInt()}", Toast.LENGTH_SHORT).show()
+                override fun onDoubleTap(e: MotionEvent): Boolean {
+                    if (imageView.isReady) {
+                        val sCoord = imageView.viewToSourceCoord(e.x, e.y)
+                        sCoord?.let {
+                            Toast.makeText(
+                                applicationContext,
+                                "Double tap: ${it.x.toInt()}, ${it.y.toInt()}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    } else {
+                        Toast.makeText(
+                            applicationContext,
+                            "Double tap: Image not ready",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
-                } else {
-                    Toast.makeText(applicationContext, "Double tap: Image not ready", Toast.LENGTH_SHORT).show()
+                    return true
                 }
-                return true
-            }
-        })
+            })
 
         imageView.setImage(ImageSource.asset("sanmartino.jpg"))
         imageView.setOnTouchListener { _, motionEvent -> gestureDetector.onTouchEvent(motionEvent) }

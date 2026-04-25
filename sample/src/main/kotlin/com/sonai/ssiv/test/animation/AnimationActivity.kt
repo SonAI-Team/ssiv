@@ -43,11 +43,17 @@ class AnimationActivity : AbstractPagesActivity(
             val maxScale = view.getMaxScale()
             val minScale = view.getMinScale()
             val scale = (random.nextFloat() * (maxScale - minScale)) + minScale
-            val center = PointF(random.nextInt(view.getSWidth()).toFloat(), random.nextInt(view.getSHeight()).toFloat())
+            val center = PointF(
+                random.nextInt(view.getSWidth()).toFloat(),
+                random.nextInt(view.getSHeight()).toFloat()
+            )
             view.setPin(center)
             val animationBuilder = view.animateScaleAndCenter(scale, center)
             if (getPage() == 3) {
-                animationBuilder?.withDuration(2000)?.withEasing(SubsamplingScaleImageView.EASE_OUT_QUAD)?.withInterruptible(false)?.start()
+                animationBuilder?.withDuration(2000)
+                    ?.withEasing(SubsamplingScaleImageView.EASE_OUT_QUAD)
+                    ?.withInterruptible(false)
+                    ?.start()
             } else {
                 animationBuilder?.withDuration(750)?.start()
             }

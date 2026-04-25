@@ -27,7 +27,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
  * tiles are being loaded before recycling the decoder. In practice, [BitmapRegionDecoder] is
  * synchronized internally so this has no real impact on performance.
  */
-class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null) : ImageRegionDecoder {
+class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null) :
+    ImageRegionDecoder {
 
     private var decoder: BitmapRegionDecoder? = null
     private val decoderLock: ReadWriteLock = ReentrantReadWriteLock(true)
@@ -43,14 +44,23 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
                 val id = uri.pathSegments.firstOrNull { it.isDigitsOnly() }?.toIntOrNull() ?: 0
                 BitmapRegionDecoder.newInstance(context.resources.openRawResource(id))
             }
+
             uriString.startsWith(ASSET_PREFIX) -> {
                 val assetName = uriString.substring(ASSET_PREFIX.length)
-                BitmapRegionDecoder.newInstance(context.assets.open(assetName, AssetManager.ACCESS_RANDOM))
+                BitmapRegionDecoder.newInstance(
+                    context.assets.open(
+                        assetName,
+                        AssetManager.ACCESS_RANDOM
+                    )
+                )
             }
+
             else -> {
                 context.contentResolver.openInputStream(uri)?.use {
                     BitmapRegionDecoder.newInstance(it)
-                } ?: throw IllegalArgumentException("Content resolver returned null stream. Unable to initialise with uri.")
+                } ?: throw IllegalArgumentException(
+                    "Content resolver returned null stream. Unable to initialise with uri."
+                )
             }
         }
         decoder = newDecoder
@@ -68,9 +78,9 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
                     inPreferredConfig = bitmapConfig
                 }
                 return d.decodeRegion(sRect, options)
-                    ?: throw IllegalStateException("Skia image decoder returned null bitmap - image format may not be supported")
+                    ?: error("Skia image decoder returned null bitmap - image format may not be supported")
             } else {
-                throw IllegalStateException("Cannot decode region after decoder has been recycled")
+                error("Cannot decode region after decoder has been recycled")
             }
         } finally {
             lock.unlock()

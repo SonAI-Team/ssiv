@@ -2,13 +2,18 @@ package com.sonai.ssiv.test.extension.views
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.*
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.PointF
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
 import com.sonai.ssiv.SubsamplingScaleImageView
 import kotlin.math.abs
 
+@Suppress("CyclomaticComplexMethod", "NestedBlockDepth", "ComplexCondition")
 class FreehandView @JvmOverloads constructor(
     context: Context,
     attr: AttributeSet? = null
@@ -51,6 +56,7 @@ class FreehandView @JvmOverloads constructor(
                     vPrevious = null
                 }
             }
+
             MotionEvent.ACTION_MOVE -> {
                 val sCurrentF = viewToSourceCoord(event.x, event.y)
                 val sCurrent = sCurrentF?.let { PointF(it.x, it.y) }
@@ -79,6 +85,7 @@ class FreehandView @JvmOverloads constructor(
                     consumed = true
                 }
             }
+
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 invalidate()
                 drawing = false

@@ -1,11 +1,15 @@
 package com.sonai.ssiv.test.extension.views
 
 import android.content.Context
-import android.graphics.*
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.PointF
 import android.util.AttributeSet
+import androidx.core.graphics.scale
 import com.sonai.ssiv.SubsamplingScaleImageView
 import com.sonai.ssiv.test.R
-import androidx.core.graphics.scale
 
 class PinView @JvmOverloads constructor(
     context: Context,

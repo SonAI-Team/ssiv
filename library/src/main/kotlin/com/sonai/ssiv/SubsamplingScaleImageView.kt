@@ -74,7 +74,19 @@ import kotlin.math.sqrt
  *
  * [View project on GitHub](https://github.com/SonAI-Team/ssiv)
  */
-@Suppress("unused", "MemberVisibilityCanBePrivate")
+@Suppress(
+    "unused",
+    "MemberVisibilityCanBePrivate",
+    "LargeClass",
+    "TooManyFunctions",
+    "ComplexCondition",
+    "TooGenericExceptionCaught",
+    "SwallowedException",
+    "NestedBlockDepth",
+    "CyclomaticComplexMethod",
+    "ReturnCount",
+    "MaxLineLength"
+)
 open class SubsamplingScaleImageView @JvmOverloads constructor(
     context: Context,
     attr: AttributeSet? = null
@@ -134,7 +146,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     // Double tap zoom behaviour
     private var doubleTapZoomScale = 1f
     private var doubleTapZoomStyle = ZOOM_FOCUS_FIXED
-    private var doubleTapZoomDuration = 500
+    private var doubleTapZoomDuration = DEFAULT_ANIM_DURATION
 
     // Current scale and scale at start of zoom
     private var scale = 0f
@@ -231,8 +243,8 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     private var satTemp: ScaleAndTranslate? = null
     private var matrix: Matrix? = null
     private var sRect: RectF? = null
-    private val srcArray = FloatArray(8)
-    private val dstArray = FloatArray(8)
+    private val srcArray = FloatArray(MATRIX_ARRAY_SIZE)
+    private val dstArray = FloatArray(MATRIX_ARRAY_SIZE)
 
     // Objects for use in onDraw to avoid allocation
     private val vCenterStartDebug = PointF()
@@ -244,9 +256,9 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     private val density: Float = resources.displayMetrics.density
 
     init {
-        setMinimumDpi(160)
-        setDoubleTapZoomDpi(160)
-        setMinimumTileDpi(320)
+        setMinimumDpi(DEFAULT_MIN_DPI)
+        setDoubleTapZoomDpi(DEFAULT_DOUBLE_TAP_ZOOM_DPI)
+        setMinimumTileDpi(DEFAULT_MIN_TILE_DPI)
         setGestureDetector(context)
         // Handle XML attributes
         if (attr != null) {
@@ -309,7 +321,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
 
         quickScaleThreshold = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
-            20f,
+            DEFAULT_QUICK_SCALE_THRESHOLD_DP,
             context.resources.displayMetrics
         )
     }
@@ -380,7 +392,9 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
 
         if (previewSource != null) {
             require(imageSource.bitmap == null) { "Preview image cannot be used when a bitmap is provided for the main image" }
-            require(!(imageSource.sWidth <= 0 || imageSource.sHeight <= 0)) { "Preview image cannot be used unless dimensions are provided for the main image" }
+            require(!(imageSource.sWidth <= 0 || imageSource.sHeight <= 0)) {
+                "Preview image cannot be used unless dimensions are provided for the main image"
+            }
             this.sWidth = imageSource.sWidth
             this.sHeight = imageSource.sHeight
             this.pRegion = previewSource.sRegion
@@ -496,13 +510,15 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                     velocityX: Float,
                     velocityY: Float
                 ): Boolean {
-                    if (panEnabled && readySent && vTranslate != null && e1 != null && (abs(e1.x - e2.x) > 50 || abs(
+                    if (panEnabled && readySent && vTranslate != null && e1 != null && (abs(e1.x - e2.x) > FLING_MIN_DISTANCE || abs(
                             e1.y - e2.y
-                        ) > 50) && (abs(velocityX) > 500 || abs(velocityY) > 500) && !isZooming
+                        ) > FLING_MIN_DISTANCE) && (abs(velocityX) > FLING_MIN_VELOCITY || abs(
+                            velocityY
+                        ) > FLING_MIN_VELOCITY) && !isZooming
                     ) {
                         val vTranslateEnd = PointF(
-                            vTranslate!!.x + velocityX * 0.25f,
-                            vTranslate!!.y + velocityY * 0.25f
+                            vTranslate!!.x + velocityX * FLING_VELOCITY_MULTIPLIER,
+                            vTranslate!!.y + velocityY * FLING_VELOCITY_MULTIPLIER
                         )
                         val sCenterXEnd = (width / 2 - vTranslateEnd.x) / scale
                         val sCenterYEnd = (height / 2 - vTranslateEnd.y) / scale
@@ -644,7 +660,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                 }
             }
 
-            if (decoder != null && result != null && result.size == 3) {
+            if (decoder != null && result != null && result.size == INIT_RESULT_COUNT) {
                 onTilesInited(decoder, result[0], result[1], result[2])
             } else if (exception != null) {
                 onImageEventListener?.onImageLoadError(exception)
@@ -675,7 +691,8 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                                 }
                                 val decoded =
                                     decoder.decodeRegion(tile.fileSRect!!, tile.sampleSize)
-                                decoded ?: throw IllegalStateException("Decoder returned null bitmap")
+                                decoded
+                                    ?: error("Decoder returned null bitmap")
                             } else {
                                 tile.loading = false
                                 null
@@ -810,251 +827,252 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
 
     private fun onTouchEventInternal(event: MotionEvent): Boolean {
         val touchCount = event.pointerCount
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
-                anim = null
-                requestDisallowInterceptTouchEvent(true)
-                maxTouchCount = max(maxTouchCount, touchCount)
-                if (touchCount >= 2) {
-                    if (zoomEnabled) {
-                        // Start pinch to zoom. Calculate distance between touch points and center point of the pinch.
-                        val distance =
-                            distance(event.getX(0), event.getX(1), event.getY(0), event.getY(1))
-                        scaleStart = scale
-                        vDistStart = distance
-                        vTranslateStart!!.set(vTranslate!!.x, vTranslate!!.y)
-                        vCenterStart!!.set(
-                            (event.getX(0) + event.getX(1)) / 2,
-                            (event.getY(0) + event.getY(1)) / 2
-                        )
-                    } else {
-                        // Abort all gestures on second touch
-                        maxTouchCount = 0
-                    }
-                    // Cancel long click timer
-                    longClickJob?.cancel()
-                } else if (!isQuickScaling) {
-                    // Start one-finger pan
-                    vTranslateStart!!.set(vTranslate!!.x, vTranslate!!.y)
-                    vCenterStart!!.set(event.x, event.y)
+        return when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> onTouchActionDown(
+                event,
+                touchCount
+            )
 
-                    // Start long click timer
-                    longClickJob = scope.launch {
-                        delay(600)
-                        if (onLongClickListener != null) {
-                            maxTouchCount = 0
-                            super@SubsamplingScaleImageView.setOnLongClickListener(
-                                onLongClickListener
-                            )
-                            performLongClick()
-                            super@SubsamplingScaleImageView.setOnLongClickListener(null)
-                        }
-                    }
-                }
-                return true
+            MotionEvent.ACTION_MOVE -> onTouchActionMove(event, touchCount)
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> onTouchActionUp(
+                event,
+                touchCount
+            )
+
+            else -> false
+        }
+    }
+
+    private fun onTouchActionDown(event: MotionEvent, touchCount: Int): Boolean {
+        anim = null
+        requestDisallowInterceptTouchEvent(true)
+        maxTouchCount = max(maxTouchCount, touchCount)
+        if (touchCount >= 2) {
+            if (zoomEnabled) {
+                val distance = distance(event.getX(0), event.getX(1), event.getY(0), event.getY(1))
+                scaleStart = scale
+                vDistStart = distance
+                vTranslateStart!!.set(vTranslate!!.x, vTranslate!!.y)
+                vCenterStart!!.set(
+                    (event.getX(0) + event.getX(1)) / 2,
+                    (event.getY(0) + event.getY(1)) / 2
+                )
+            } else {
+                maxTouchCount = 0
             }
+            longClickJob?.cancel()
+        } else if (!isQuickScaling) {
+            vTranslateStart!!.set(vTranslate!!.x, vTranslate!!.y)
+            vCenterStart!!.set(event.x, event.y)
+            startLongClickTimer()
+        }
+        return true
+    }
 
-            MotionEvent.ACTION_MOVE -> {
-                var consumed = false
-                if (maxTouchCount > 0) {
-                    if (touchCount >= 2) {
-                        // Calculate new distance between touch points, to scale and pan relative to start values.
-                        val vDistEnd =
-                            distance(event.getX(0), event.getX(1), event.getY(0), event.getY(1))
-                        val vCenterEndX = (event.getX(0) + event.getX(1)) / 2
-                        val vCenterEndY = (event.getY(0) + event.getY(1)) / 2
-
-                        if (zoomEnabled && (distance(
-                                vCenterStart!!.x,
-                                vCenterEndX,
-                                vCenterStart!!.y,
-                                vCenterEndY
-                            ) > 5 || abs(vDistEnd - vDistStart) > 5 || isPanning)
-                        ) {
-                            isZooming = true
-                            isPanning = true
-                            consumed = true
-
-                            val previousScale = scale.toDouble()
-                            scale = min(maxScale, vDistEnd / vDistStart * scaleStart)
-
-                            if (scale <= minScale()) {
-                                // Minimum scale reached so don't pan. Adjust start settings so any expand will zoom in.
-                                vDistStart = vDistEnd
-                                scaleStart = minScale()
-                                vCenterStart!!.set(vCenterEndX, vCenterEndY)
-                                vTranslateStart!!.set(vTranslate!!)
-                            } else if (panEnabled) {
-                                // Translate to place the source image coordinate that was at the center of the pinch at the start
-                                // at the center of the pinch now, to give simultaneous pan + zoom.
-                                val vLeftStart = vCenterStart!!.x - vTranslateStart!!.x
-                                val vTopStart = vCenterStart!!.y - vTranslateStart!!.y
-                                val vLeftNow = vLeftStart * (scale / scaleStart)
-                                val vTopNow = vTopStart * (scale / scaleStart)
-                                vTranslate!!.x = vCenterEndX - vLeftNow
-                                vTranslate!!.y = vCenterEndY - vTopNow
-                                if (previousScale * sHeight() < height && scale * sHeight() >= height || previousScale * sWidth() < width && scale * sWidth() >= width) {
-                                    fitToBounds(true)
-                                    vCenterStart!!.set(vCenterEndX, vCenterEndY)
-                                    vTranslateStart!!.set(vTranslate!!)
-                                    scaleStart = scale
-                                    vDistStart = vDistEnd
-                                }
-                            } else if (sRequestedCenter != null) {
-                                // With a center specified from code, zoom around that point.
-                                vTranslate!!.x = width / 2 - scale * sRequestedCenter!!.x
-                                vTranslate!!.y = height / 2 - scale * sRequestedCenter!!.y
-                            } else {
-                                // With no requested center, scale around the image center.
-                                vTranslate!!.x = width / 2 - scale * (sWidth() / 2)
-                                vTranslate!!.y = height / 2 - scale * (sHeight() / 2)
-                            }
-
-                            fitToBounds(true)
-                            refreshRequiredTiles(eagerLoadingEnabled)
-                        }
-                    } else if (isQuickScaling) {
-                        // One finger zoom
-                        // Stole Google's Magical Formula™ to make sure it feels the exact same
-                        var dist = abs(quickScaleVStart!!.y - event.y) * 2 + quickScaleThreshold
-
-                        if (quickScaleLastDistance == -1f) {
-                            quickScaleLastDistance = dist
-                        }
-                        val isUpwards = event.y > quickScaleVLastPoint!!.y
-                        quickScaleVLastPoint!!.set(0f, event.y)
-
-                        val spanDiff = abs(1 - dist / quickScaleLastDistance) * 0.5f
-
-                        if (spanDiff > 0.03f || quickScaleMoved) {
-                            quickScaleMoved = true
-
-                            var multiplier = 1f
-                            if (quickScaleLastDistance > 0) {
-                                multiplier = if (isUpwards) 1 + spanDiff else 1 - spanDiff
-                            }
-
-                            val previousScale = scale.toDouble()
-                            scale = max(minScale(), min(maxScale, scale * multiplier))
-
-                            if (panEnabled) {
-                                val vLeftStart = vCenterStart!!.x - vTranslateStart!!.x
-                                val vTopStart = vCenterStart!!.y - vTranslateStart!!.y
-                                val vLeftNow = vLeftStart * (scale / scaleStart)
-                                val vTopNow = vTopStart * (scale / scaleStart)
-                                vTranslate!!.x = vCenterStart!!.x - vLeftNow
-                                vTranslate!!.y = vCenterStart!!.y - vTopNow
-                                if (previousScale * sHeight() < height && scale * sHeight() >= height || previousScale * sWidth() < width && scale * sWidth() >= width) {
-                                    fitToBounds(true)
-                                    vCenterStart!!.set(sourceToViewCoord(quickScaleSCenter!!)!!)
-                                    vTranslateStart!!.set(vTranslate!!)
-                                    scaleStart = scale
-                                    dist = 0f
-                                }
-                            } else if (sRequestedCenter != null) {
-                                // With a center specified from code, zoom around that point.
-                                vTranslate!!.x = width / 2 - scale * sRequestedCenter!!.x
-                                vTranslate!!.y = height / 2 - scale * sRequestedCenter!!.y
-                            } else {
-                                // With no requested center, scale around the image center.
-                                vTranslate!!.x = width / 2 - scale * (sWidth() / 2)
-                                vTranslate!!.y = height / 2 - scale * (sHeight() / 2)
-                            }
-                        }
-
-                        quickScaleLastDistance = dist
-
-                        fitToBounds(true)
-                        refreshRequiredTiles(eagerLoadingEnabled)
-
-                        consumed = true
-                    } else if (!isZooming) {
-                        // One finger pan - translate the image. We do this calculation even with pan disabled so click
-                        // and long click behavior is preserved.
-                        val dx = abs(event.x - vCenterStart!!.x)
-                        val dy = abs(event.y - vCenterStart!!.y)
-
-                        //On the Samsung S6 long click event does not work, because the dx > 5 usually true
-                        val offset = density * 5
-                        if (dx > offset || dy > offset || isPanning) {
-                            consumed = true
-                            vTranslate!!.x = vTranslateStart!!.x + (event.x - vCenterStart!!.x)
-                            vTranslate!!.y = vTranslateStart!!.y + (event.y - vCenterStart!!.y)
-
-                            val lastX = vTranslate!!.x
-                            val lastY = vTranslate!!.y
-                            fitToBounds(true)
-                            val atXEdge = lastX != vTranslate!!.x
-                            val atYEdge = lastY != vTranslate!!.y
-                            val edgeXSwipe = atXEdge && dx > dy && !isPanning
-                            val edgeYSwipe = atYEdge && dy > dx && !isPanning
-                            val yPan = lastY == vTranslate!!.y && dy > offset * 3
-                            if (!edgeXSwipe && !edgeYSwipe && (!atXEdge || !atYEdge || yPan || isPanning)) {
-                                isPanning = true
-                            } else if (dx > offset || dy > offset) {
-                                // Haven't panned the image, and we're at the left or right edge. Switch to page swipe.
-                                maxTouchCount = 0
-                                longClickJob?.cancel()
-                                requestDisallowInterceptTouchEvent(false)
-                            }
-                            if (!panEnabled) {
-                                vTranslate!!.x = vTranslateStart!!.x
-                                vTranslate!!.y = vTranslateStart!!.y
-                                requestDisallowInterceptTouchEvent(false)
-                            }
-
-                            refreshRequiredTiles(eagerLoadingEnabled)
-                        }
-                    }
-                }
-                if (consumed) {
-                    longClickJob?.cancel()
-                    invalidate()
-                    return true
-                }
-            }
-
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
-                longClickJob?.cancel()
-                if (isQuickScaling) {
-                    isQuickScaling = false
-                    if (!quickScaleMoved) {
-                        doubleTapZoom(quickScaleSCenter!!, vCenterStart!!)
-                    }
-                }
-                if (maxTouchCount > 0 && (isZooming || isPanning)) {
-                    if (isZooming && touchCount == 2) {
-                        // Convert from zoom to pan with remaining touch
-                        isPanning = true
-                        vTranslateStart!!.set(vTranslate!!.x, vTranslate!!.y)
-                        if (event.actionIndex == 1) {
-                            vCenterStart!!.set(event.getX(0), event.getY(0))
-                        } else {
-                            vCenterStart!!.set(event.getX(1), event.getY(1))
-                        }
-                    }
-                    if (touchCount < 3) {
-                        // End zooming when only one touch point
-                        isZooming = false
-                    }
-                    if (touchCount < 2) {
-                        // End panning when no touch points
-                        isPanning = false
-                        maxTouchCount = 0
-                    }
-                    // Trigger load of tiles now required
-                    refreshRequiredTiles(true)
-                    return true
-                }
-                if (touchCount == 1) {
-                    isZooming = false
-                    isPanning = false
-                    maxTouchCount = 0
-                }
-                return true
+    private fun startLongClickTimer() {
+        longClickJob = scope.launch {
+            delay(LONG_CLICK_DELAY)
+            if (onLongClickListener != null) {
+                maxTouchCount = 0
+                super@SubsamplingScaleImageView.setOnLongClickListener(onLongClickListener)
+                performLongClick()
+                super@SubsamplingScaleImageView.setOnLongClickListener(null)
             }
         }
+    }
+
+    private fun onTouchActionMove(event: MotionEvent, touchCount: Int): Boolean {
+        var consumed = false
+        if (maxTouchCount > 0) {
+            if (touchCount >= 2) {
+                consumed = handlePinch(event)
+            } else if (isQuickScaling) {
+                consumed = handleQuickScale(event)
+            } else if (!isZooming) {
+                consumed = handlePan(event)
+            }
+        }
+        if (consumed) {
+            longClickJob?.cancel()
+            invalidate()
+            return true
+        }
         return false
+    }
+
+    private fun handlePinch(event: MotionEvent): Boolean {
+        val vDistEnd = distance(event.getX(0), event.getX(1), event.getY(0), event.getY(1))
+        val vCenterEndX = (event.getX(0) + event.getX(1)) / 2
+        val vCenterEndY = (event.getY(0) + event.getY(1)) / 2
+
+        if (zoomEnabled && (distance(
+                vCenterStart!!.x,
+                vCenterEndX,
+                vCenterStart!!.y,
+                vCenterEndY
+            ) > TOUCH_SLOP_PX
+                    || abs(vDistEnd - vDistStart) > TOUCH_SLOP_PX || isPanning)
+        ) {
+            isZooming = true
+            isPanning = true
+            val previousScale = scale.toDouble()
+            scale = min(maxScale, vDistEnd / vDistStart * scaleStart)
+
+            if (scale <= minScale()) {
+                vDistStart = vDistEnd
+                scaleStart = minScale()
+                vCenterStart!!.set(vCenterEndX, vCenterEndY)
+                vTranslateStart!!.set(vTranslate!!)
+            } else if (panEnabled) {
+                val vLeftStart = vCenterStart!!.x - vTranslateStart!!.x
+                val vTopStart = vCenterStart!!.y - vTranslateStart!!.y
+                val vLeftNow = vLeftStart * (scale / scaleStart)
+                val vTopNow = vTopStart * (scale / scaleStart)
+                vTranslate!!.x = vCenterEndX - vLeftNow
+                vTranslate!!.y = vCenterEndY - vTopNow
+                if (previousScale * sHeight() < height && scale * sHeight() >= height || previousScale * sWidth() < width && scale * sWidth() >= width) {
+                    fitToBounds(true)
+                    vCenterStart!!.set(vCenterEndX, vCenterEndY)
+                    vTranslateStart!!.set(vTranslate!!)
+                    scaleStart = scale
+                    vDistStart = vDistEnd
+                }
+            } else if (sRequestedCenter != null) {
+                vTranslate!!.x = width / 2 - scale * sRequestedCenter!!.x
+                vTranslate!!.y = height / 2 - scale * sRequestedCenter!!.y
+            } else {
+                vTranslate!!.x = width / 2 - scale * (sWidth() / 2)
+                vTranslate!!.y = height / 2 - scale * (sHeight() / 2)
+            }
+
+            fitToBounds(true)
+            refreshRequiredTiles(eagerLoadingEnabled)
+            return true
+        }
+        return false
+    }
+
+    private fun handleQuickScale(event: MotionEvent): Boolean {
+        var dist = abs(quickScaleVStart!!.y - event.y) * 2 + quickScaleThreshold
+
+        if (quickScaleLastDistance == -1f) {
+            quickScaleLastDistance = dist
+        }
+        val isUpwards = event.y > quickScaleVLastPoint!!.y
+        quickScaleVLastPoint!!.set(0f, event.y)
+
+        val spanDiff = abs(1 - dist / quickScaleLastDistance) * QUICK_SCALE_MULTIPLIER_BASE
+
+        if (spanDiff > QUICK_SCALE_SPAN_DIFF_THRESHOLD || quickScaleMoved) {
+            quickScaleMoved = true
+
+            var multiplier = 1f
+            if (quickScaleLastDistance > 0) {
+                multiplier = if (isUpwards) 1 + spanDiff else 1 - spanDiff
+            }
+
+            val previousScale = scale.toDouble()
+            scale = max(minScale(), min(maxScale, scale * multiplier))
+
+            if (panEnabled) {
+                val vLeftStart = vCenterStart!!.x - vTranslateStart!!.x
+                val vTopStart = vCenterStart!!.y - vTranslateStart!!.y
+                val vLeftNow = vLeftStart * (scale / scaleStart)
+                val vTopNow = vTopStart * (scale / scaleStart)
+                vTranslate!!.x = vCenterStart!!.x - vLeftNow
+                vTranslate!!.y = vCenterStart!!.y - vTopNow
+                if (previousScale * sHeight() < height && scale * sHeight() >= height || previousScale * sWidth() < width && scale * sWidth() >= width) {
+                    fitToBounds(true)
+                    vCenterStart!!.set(sourceToViewCoord(quickScaleSCenter!!)!!)
+                    vTranslateStart!!.set(vTranslate!!)
+                    scaleStart = scale
+                    dist = 0f
+                }
+            } else if (sRequestedCenter != null) {
+                vTranslate!!.x = width / 2 - scale * sRequestedCenter!!.x
+                vTranslate!!.y = height / 2 - scale * sRequestedCenter!!.y
+            } else {
+                vTranslate!!.x = width / 2 - scale * (sWidth() / 2)
+                vTranslate!!.y = height / 2 - scale * (sHeight() / 2)
+            }
+        }
+
+        quickScaleLastDistance = dist
+        fitToBounds(true)
+        refreshRequiredTiles(eagerLoadingEnabled)
+        return true
+    }
+
+    private fun handlePan(event: MotionEvent): Boolean {
+        val dx = abs(event.x - vCenterStart!!.x)
+        val dy = abs(event.y - vCenterStart!!.y)
+
+        val offset = density * TOUCH_SLOP_PX
+        if (dx > offset || dy > offset || isPanning) {
+            vTranslate!!.x = vTranslateStart!!.x + (event.x - vCenterStart!!.x)
+            vTranslate!!.y = vTranslateStart!!.y + (event.y - vCenterStart!!.y)
+
+            val lastX = vTranslate!!.x
+            val lastY = vTranslate!!.y
+            fitToBounds(true)
+            val atXEdge = lastX != vTranslate!!.x
+            val atYEdge = lastY != vTranslate!!.y
+            val edgeXSwipe = atXEdge && dx > dy && !isPanning
+            val edgeYSwipe = atYEdge && dy > dx && !isPanning
+            val yPan = lastY == vTranslate!!.y && dy > offset * PAN_EDGE_THRESHOLD_MULTIPLIER
+            if (!edgeXSwipe && !edgeYSwipe && (!atXEdge || !atYEdge || yPan || isPanning)) {
+                isPanning = true
+            } else if (dx > offset || dy > offset) {
+                maxTouchCount = 0
+                longClickJob?.cancel()
+                requestDisallowInterceptTouchEvent(false)
+            }
+            if (!panEnabled) {
+                vTranslate!!.x = vTranslateStart!!.x
+                vTranslate!!.y = vTranslateStart!!.y
+                requestDisallowInterceptTouchEvent(false)
+            }
+
+            refreshRequiredTiles(eagerLoadingEnabled)
+            return true
+        }
+        return false
+    }
+
+    private fun onTouchActionUp(event: MotionEvent, touchCount: Int): Boolean {
+        longClickJob?.cancel()
+        if (isQuickScaling) {
+            isQuickScaling = false
+            if (!quickScaleMoved) {
+                doubleTapZoom(quickScaleSCenter!!, vCenterStart!!)
+            }
+        }
+        if (maxTouchCount > 0 && (isZooming || isPanning)) {
+            if (isZooming && touchCount == 2) {
+                isPanning = true
+                vTranslateStart!!.set(vTranslate!!.x, vTranslate!!.y)
+                if (event.actionIndex == 1) {
+                    vCenterStart!!.set(event.getX(0), event.getY(0))
+                } else {
+                    vCenterStart!!.set(event.getX(1), event.getY(1))
+                }
+            }
+            if (touchCount < MIN_PINCH_TOUCH_COUNT + 1) {
+                isZooming = false
+            }
+            if (touchCount < MIN_PINCH_TOUCH_COUNT) {
+                isPanning = false
+                maxTouchCount = 0
+            }
+            refreshRequiredTiles(true)
+            return true
+        }
+        if (touchCount == 1) {
+            isZooming = false
+            isPanning = false
+            maxTouchCount = 0
+        }
+        return true
     }
 
     private fun requestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {
@@ -1079,7 +1097,8 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             }
         }
         val targetDoubleTapZoomScale = min(maxScale, doubleTapZoomScale)
-        val zoomIn = scale <= targetDoubleTapZoomScale * 0.9 || scale == minScale
+        val zoomIn =
+            scale <= targetDoubleTapZoomScale * DOUBLE_TAP_ZOOM_THRESHOLD || scale == minScale
         val targetScale = if (zoomIn) targetDoubleTapZoomScale else minScale()
         if (doubleTapZoomStyle == ZOOM_FOCUS_CENTER_IMMEDIATE) {
             setScaleAndCenter(targetScale, sCenter)
@@ -1204,99 +1223,108 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             for (tileMapEntry in tileMap.entries) {
                 if (tileMapEntry.key == sampleSize || hasMissingTiles) {
                     for (tile in tileMapEntry.value) {
-                        sourceToViewRect(tile.sRect!!, tile.vRect!!)
-                        if (!tile.loading && tile.bitmap != null) {
-                            tileBgPaint?.let {
-                                canvas.drawRect(tile.vRect!!, it)
-                            }
-                            if (matrix == null) {
-                                matrix = Matrix()
-                            }
-                            matrix!!.reset()
-                            setMatrixArray(
-                                srcArray,
-                                0f,
-                                0f,
-                                tile.bitmap!!.width.toFloat(),
-                                0f,
-                                tile.bitmap!!.width.toFloat(),
-                                tile.bitmap!!.height.toFloat(),
-                                0f,
-                                tile.bitmap!!.height.toFloat()
-                            )
-                            when (getRequiredRotation()) {
-                                ORIENTATION_0 -> setMatrixArray(
-                                    dstArray,
-                                    tile.vRect!!.left.toFloat(),
-                                    tile.vRect!!.top.toFloat(),
-                                    tile.vRect!!.right.toFloat(),
-                                    tile.vRect!!.top.toFloat(),
-                                    tile.vRect!!.right.toFloat(),
-                                    tile.vRect!!.bottom.toFloat(),
-                                    tile.vRect!!.left.toFloat(),
-                                    tile.vRect!!.bottom.toFloat()
-                                )
-
-                                ORIENTATION_90 -> setMatrixArray(
-                                    dstArray,
-                                    tile.vRect!!.right.toFloat(),
-                                    tile.vRect!!.top.toFloat(),
-                                    tile.vRect!!.right.toFloat(),
-                                    tile.vRect!!.bottom.toFloat(),
-                                    tile.vRect!!.left.toFloat(),
-                                    tile.vRect!!.bottom.toFloat(),
-                                    tile.vRect!!.left.toFloat(),
-                                    tile.vRect!!.top.toFloat()
-                                )
-
-                                ORIENTATION_180 -> setMatrixArray(
-                                    dstArray,
-                                    tile.vRect!!.right.toFloat(),
-                                    tile.vRect!!.bottom.toFloat(),
-                                    tile.vRect!!.left.toFloat(),
-                                    tile.vRect!!.bottom.toFloat(),
-                                    tile.vRect!!.left.toFloat(),
-                                    tile.vRect!!.top.toFloat(),
-                                    tile.vRect!!.right.toFloat(),
-                                    tile.vRect!!.top.toFloat()
-                                )
-
-                                ORIENTATION_270 -> setMatrixArray(
-                                    dstArray,
-                                    tile.vRect!!.left.toFloat(),
-                                    tile.vRect!!.bottom.toFloat(),
-                                    tile.vRect!!.left.toFloat(),
-                                    tile.vRect!!.top.toFloat(),
-                                    tile.vRect!!.right.toFloat(),
-                                    tile.vRect!!.top.toFloat(),
-                                    tile.vRect!!.right.toFloat(),
-                                    tile.vRect!!.bottom.toFloat()
-                                )
-                            }
-                            matrix!!.setPolyToPoly(srcArray, 0, dstArray, 0, 4)
-                            canvas.drawBitmap(tile.bitmap!!, matrix!!, bitmapPaint)
-                            if (debug) {
-                                canvas.drawRect(tile.vRect!!, debugLinePaint!!)
-                            }
-                        } else if (tile.loading && debug) {
-                            canvas.drawText(
-                                "LOADING",
-                                (tile.vRect!!.left + px(5)).toFloat(),
-                                (tile.vRect!!.top + px(35)).toFloat(),
-                                debugTextPaint!!
-                            )
-                        }
-                        if (tile.visible && debug) {
-                            canvas.drawText(
-                                "ISS ${tile.sampleSize} RECT ${tile.sRect!!.top},${tile.sRect!!.left},${tile.sRect!!.bottom},${tile.sRect!!.right}",
-                                (tile.vRect!!.left + px(5)).toFloat(),
-                                (tile.vRect!!.top + px(15)).toFloat(),
-                                debugTextPaint!!
-                            )
-                        }
+                        drawTile(canvas, tile)
                     }
                 }
             }
+        }
+    }
+
+    private fun drawTile(canvas: Canvas, tile: Tile) {
+        sourceToViewRect(tile.sRect!!, tile.vRect!!)
+        if (!tile.loading && tile.bitmap != null) {
+            tileBgPaint?.let {
+                canvas.drawRect(tile.vRect!!, it)
+            }
+            if (matrix == null) {
+                matrix = Matrix()
+            }
+            matrix!!.reset()
+            setMatrixArray(
+                srcArray,
+                0f,
+                0f,
+                tile.bitmap!!.width.toFloat(),
+                0f,
+                tile.bitmap!!.width.toFloat(),
+                tile.bitmap!!.height.toFloat(),
+                0f,
+                tile.bitmap!!.height.toFloat()
+            )
+            val rotation = getRequiredRotation()
+            setupDstArray(tile.vRect!!, rotation)
+            matrix!!.setPolyToPoly(srcArray, 0, dstArray, 0, POLY_TO_POLY_COUNT)
+            canvas.drawBitmap(tile.bitmap!!, matrix!!, bitmapPaint)
+            if (debug) {
+                canvas.drawRect(tile.vRect!!, debugLinePaint!!)
+            }
+        } else if (tile.loading && debug) {
+            canvas.drawText(
+                "LOADING",
+                (tile.vRect!!.left + px(DEBUG_OFFSET_PX)).toFloat(),
+                (tile.vRect!!.top + px(DEBUG_OFFSET_Y_LOADING_PX)).toFloat(),
+                debugTextPaint!!
+            )
+        }
+        if (tile.visible && debug) {
+            canvas.drawText(
+                "ISS ${tile.sampleSize} RECT ${tile.sRect!!.top},${tile.sRect!!.left},${tile.sRect!!.bottom},${tile.sRect!!.right}",
+                (tile.vRect!!.left + px(DEBUG_OFFSET_PX)).toFloat(),
+                (tile.vRect!!.top + px(DEBUG_LINE_SPACING_PX)).toFloat(),
+                debugTextPaint!!
+            )
+        }
+    }
+
+    private fun setupDstArray(vRect: Rect, rotation: Int) {
+        when (rotation) {
+            ORIENTATION_0 -> setMatrixArray(
+                dstArray,
+                vRect.left.toFloat(),
+                vRect.top.toFloat(),
+                vRect.right.toFloat(),
+                vRect.top.toFloat(),
+                vRect.right.toFloat(),
+                vRect.bottom.toFloat(),
+                vRect.left.toFloat(),
+                vRect.bottom.toFloat()
+            )
+
+            ORIENTATION_90 -> setMatrixArray(
+                dstArray,
+                vRect.right.toFloat(),
+                vRect.top.toFloat(),
+                vRect.right.toFloat(),
+                vRect.bottom.toFloat(),
+                vRect.left.toFloat(),
+                vRect.bottom.toFloat(),
+                vRect.left.toFloat(),
+                vRect.top.toFloat()
+            )
+
+            ORIENTATION_180 -> setMatrixArray(
+                dstArray,
+                vRect.right.toFloat(),
+                vRect.bottom.toFloat(),
+                vRect.left.toFloat(),
+                vRect.bottom.toFloat(),
+                vRect.left.toFloat(),
+                vRect.top.toFloat(),
+                vRect.right.toFloat(),
+                vRect.top.toFloat()
+            )
+
+            ORIENTATION_270 -> setMatrixArray(
+                dstArray,
+                vRect.left.toFloat(),
+                vRect.bottom.toFloat(),
+                vRect.left.toFloat(),
+                vRect.top.toFloat(),
+                vRect.right.toFloat(),
+                vRect.top.toFloat(),
+                vRect.right.toFloat(),
+                vRect.bottom.toFloat()
+            )
         }
     }
 
@@ -1344,104 +1372,112 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
 
     private fun drawDebug(canvas: Canvas) {
         if (debug) {
-            canvas.drawText(
-                "Scale: ${
-                    String.format(
-                        Locale.ENGLISH,
-                        "%.2f",
-                        scale
-                    )
-                } (${
-                    String.format(
-                        Locale.ENGLISH,
-                        "%.2f",
-                        minScale()
-                    )
-                } - ${String.format(Locale.ENGLISH, "%.2f", maxScale)})",
-                px(5).toFloat(),
-                px(15).toFloat(),
-                debugTextPaint!!
-            )
-            canvas.drawText(
-                "Translate: ${
-                    String.format(
-                        Locale.ENGLISH,
-                        "%.2f",
-                        vTranslate!!.x
-                    )
-                }:${String.format(Locale.ENGLISH, "%.2f", vTranslate!!.y)}",
-                px(5).toFloat(),
-                px(30).toFloat(),
-                debugTextPaint!!
-            )
-            val currentCenter = center
-            if (currentCenter != null) {
-                centerDebug.set(currentCenter)
-                canvas.drawText(
-                    "Source center: ${
-                        String.format(
-                            Locale.ENGLISH,
-                            "%.2f",
-                            centerDebug.x
-                        )
-                    }:${String.format(Locale.ENGLISH, "%.2f", centerDebug.y)}",
-                    px(5).toFloat(),
-                    px(45).toFloat(),
-                    debugTextPaint!!
-                )
-            }
-            anim?.let {
-                sourceToViewCoord(it.sCenterStart!!, vCenterStartDebug)
-                sourceToViewCoord(it.sCenterEndRequested!!, vCenterEndRequestedDebug)
-                sourceToViewCoord(it.sCenterEnd!!, vCenterEndDebug)
-                canvas.drawCircle(
-                    vCenterStartDebug.x,
-                    vCenterStartDebug.y,
-                    px(10).toFloat(),
-                    debugLinePaint!!
-                )
-                debugLinePaint!!.color = Color.RED
-                canvas.drawCircle(
-                    vCenterEndRequestedDebug.x,
-                    vCenterEndRequestedDebug.y,
-                    px(20).toFloat(),
-                    debugLinePaint!!
-                )
-                debugLinePaint!!.color = Color.BLUE
-                canvas.drawCircle(
-                    vCenterEndDebug.x,
-                    vCenterEndDebug.y,
-                    px(25).toFloat(),
-                    debugLinePaint!!
-                )
-                debugLinePaint!!.color = Color.CYAN
-                canvas.drawCircle(
-                    (width / 2).toFloat(),
-                    (height / 2).toFloat(),
-                    px(30).toFloat(),
-                    debugLinePaint!!
-                )
-            }
-            vCenterStart?.let {
-                debugLinePaint!!.color = Color.RED
-                canvas.drawCircle(it.x, it.y, px(20).toFloat(), debugLinePaint!!)
-            }
-            quickScaleSCenter?.let {
-                debugLinePaint!!.color = Color.BLUE
-                canvas.drawCircle(
-                    sourceToViewX(it.x),
-                    sourceToViewY(it.y),
-                    px(35).toFloat(),
-                    debugLinePaint!!
-                )
-            }
-            quickScaleVStart?.let {
-                if (isQuickScaling) {
-                    debugLinePaint!!.color = Color.CYAN
-                    canvas.drawCircle(it.x, it.y, px(30).toFloat(), debugLinePaint!!)
-                }
-            }
+            drawDebugText(canvas)
+            drawDebugCircles(canvas)
             debugLinePaint!!.color = Color.MAGENTA
+        }
+    }
+
+    private fun drawDebugText(canvas: Canvas) {
+        canvas.drawText(
+            "Scale: ${
+                String.format(
+                    Locale.ENGLISH,
+                    "%.2f",
+                    scale
+                )
+            } (${
+                String.format(
+                    Locale.ENGLISH,
+                    "%.2f",
+                    minScale()
+                )
+            } - ${String.format(Locale.ENGLISH, "%.2f", maxScale)})",
+            px(DEBUG_OFFSET_PX).toFloat(),
+            px(DEBUG_LINE_SPACING_PX).toFloat(),
+            debugTextPaint!!
+        )
+        canvas.drawText(
+            "Translate: ${
+                String.format(
+                    Locale.ENGLISH,
+                    "%.2f",
+                    vTranslate!!.x
+                )
+            }:${String.format(Locale.ENGLISH, "%.2f", vTranslate!!.y)}",
+            px(DEBUG_OFFSET_PX).toFloat(),
+            px(DEBUG_OFFSET_Y_TRANS_PX).toFloat(),
+            debugTextPaint!!
+        )
+        val currentCenter = center
+        if (currentCenter != null) {
+            centerDebug.set(currentCenter)
+            canvas.drawText(
+                "Source center: ${
+                    String.format(
+                        Locale.ENGLISH,
+                        "%.2f",
+                        centerDebug.x
+                    )
+                }:${String.format(Locale.ENGLISH, "%.2f", centerDebug.y)}",
+                px(DEBUG_OFFSET_PX).toFloat(),
+                px(DEBUG_OFFSET_Y_CENTER_PX).toFloat(),
+                debugTextPaint!!
+            )
+        }
+    }
+
+    private fun drawDebugCircles(canvas: Canvas) {
+        anim?.let {
+            sourceToViewCoord(it.sCenterStart!!, vCenterStartDebug)
+            sourceToViewCoord(it.sCenterEndRequested!!, vCenterEndRequestedDebug)
+            sourceToViewCoord(it.sCenterEnd!!, vCenterEndDebug)
+            canvas.drawCircle(
+                vCenterStartDebug.x,
+                vCenterStartDebug.y,
+                px(DEBUG_CIRCLE_RADIUS_PX).toFloat(),
+                debugLinePaint!!
+            )
+            debugLinePaint!!.color = Color.RED
+            canvas.drawCircle(
+                vCenterEndRequestedDebug.x,
+                vCenterEndRequestedDebug.y,
+                px(DEBUG_CIRCLE_20_PX).toFloat(),
+                debugLinePaint!!
+            )
+            debugLinePaint!!.color = Color.BLUE
+            canvas.drawCircle(
+                vCenterEndDebug.x,
+                vCenterEndDebug.y,
+                px(DEBUG_CIRCLE_25_PX).toFloat(),
+                debugLinePaint!!
+            )
+            debugLinePaint!!.color = Color.CYAN
+            canvas.drawCircle(
+                (width / 2).toFloat(),
+                (height / 2).toFloat(),
+                px(DEBUG_CIRCLE_30_PX).toFloat(),
+                debugLinePaint!!
+            )
+        }
+        vCenterStart?.let {
+            debugLinePaint!!.color = Color.RED
+            canvas.drawCircle(it.x, it.y, px(DEBUG_CIRCLE_20_PX).toFloat(), debugLinePaint!!)
+        }
+        quickScaleSCenter?.let {
+            debugLinePaint!!.color = Color.BLUE
+            canvas.drawCircle(
+                sourceToViewX(it.x),
+                sourceToViewY(it.y),
+                px(DEBUG_CIRCLE_35_PX).toFloat(),
+                debugLinePaint!!
+            )
+        }
+        quickScaleVStart?.let {
+            if (isQuickScaling) {
+                debugLinePaint!!.color = Color.CYAN
+                canvas.drawCircle(it.x, it.y, px(DEBUG_CIRCLE_30_PX).toFloat(), debugLinePaint!!)
+            }
         }
     }
 
@@ -1450,23 +1486,11 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
      */
     private fun setMatrixArray(
         array: FloatArray,
-        f0: Float,
-        f1: Float,
-        f2: Float,
-        f3: Float,
-        f4: Float,
-        f5: Float,
-        f6: Float,
-        f7: Float
+        vararg values: Float
     ) {
-        array[0] = f0
-        array[1] = f1
-        array[2] = f2
-        array[3] = f3
-        array[4] = f4
-        array[5] = f5
-        array[6] = f6
-        array[7] = f7
+        for (i in values.indices) {
+            array[i] = values[i]
+        }
     }
 
     /**
@@ -1477,20 +1501,8 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             return true
         }
         val tileMap = tileManager.tileMap
-        if (tileMap != null) {
-            var baseLayerReady = true
-            for (tileMapEntry in tileMap.entries) {
-                if (tileMapEntry.key == fullImageSampleSize) {
-                    for (tile in tileMapEntry.value) {
-                        if (tile.loading || tile.bitmap == null) {
-                            baseLayerReady = false
-                        }
-                    }
-                }
-            }
-            return baseLayerReady
-        }
-        return false
+        val baseGrid = tileMap?.get(fullImageSampleSize) ?: return false
+        return baseGrid.none { it.loading || it.bitmap == null }
     }
 
     /**
@@ -1541,13 +1553,13 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         }
         if ((debugTextPaint == null || debugLinePaint == null) && debug) {
             debugTextPaint = Paint()
-            debugTextPaint!!.textSize = px(12).toFloat()
+            debugTextPaint!!.textSize = px(DEBUG_TEXT_SIZE_DP).toFloat()
             debugTextPaint!!.color = Color.MAGENTA
             debugTextPaint!!.style = Style.FILL
             debugLinePaint = Paint()
             debugLinePaint!!.color = Color.MAGENTA
             debugLinePaint!!.style = Style.STROKE
-            debugLinePaint!!.strokeWidth = px(1).toFloat()
+            debugLinePaint!!.strokeWidth = px(DEBUG_LINE_WIDTH_PX).toFloat()
         }
     }
 
@@ -1573,7 +1585,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             fullImageSampleSize /= 2
         }
 
-        if (fullImageSampleSize == 1 && sRegion == null && sWidth() < maxTileDimensions.x && sHeight() < maxTileDimensions.y) {
+        if (fullImageSampleSize == FULL_IMAGE_SAMPLE_SIZE && sRegion == null && sWidth() < maxTileDimensions.x && sHeight() < maxTileDimensions.y) {
 
             // Whole image is required at native resolution, and is smaller than the canvas max bitmap size.
             // Use BitmapDecoder for better image support.
@@ -1588,7 +1600,16 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
 
         } else {
 
-            tileManager.initialiseTileMap(maxTileDimensions, fullImageSampleSize, sWidth(), sHeight(), width, height)
+            tileManager.initialiseTileMap(
+                TileManager.TileMapInitParams(
+                    maxTileDimensions,
+                    fullImageSampleSize,
+                    sWidth(),
+                    sHeight(),
+                    width,
+                    height
+                )
+            )
 
             val baseGrid = tileManager.tileMap!![fullImageSampleSize]
             if (baseGrid != null) {
@@ -1610,18 +1631,18 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             viewToSourceY(height.toFloat())
         )
         tileManager.refreshRequiredTiles(
-            load,
-            scale,
-            fullImageSampleSize,
-            decoder,
-            width,
-            height,
-            sVisRect,
-            { calculateInSampleSize(it) },
-            { d, t -> executeTileLoadTask(d, t) }
+            TileManager.RefreshParams(
+                load,
+                scale,
+                fullImageSampleSize,
+                decoder,
+                sVisRect,
+                { calculateInSampleSize(it) },
+                { d, t -> executeTileLoadTask(d, t) }
+            )
         )
     }
-    
+
     /**
      * Sets scale and translate ready for the next draw.
      */
@@ -1720,9 +1741,17 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
 
         // Asymmetric padding adjustments
         val xPaddingRatio =
-            if (paddingLeft > 0 || paddingRight > 0) paddingLeft.toFloat() / (paddingLeft + paddingRight) else 0.5f
+            if (paddingLeft > 0 || paddingRight > 0) {
+                paddingLeft.toFloat() / (paddingLeft + paddingRight)
+            } else {
+                CENTER_RATIO
+            }
         val yPaddingRatio =
-            if (paddingTop > 0 || paddingBottom > 0) paddingTop.toFloat() / (paddingTop + paddingBottom) else 0.5f
+            if (paddingTop > 0 || paddingBottom > 0) {
+                paddingTop.toFloat() / (paddingTop + paddingBottom)
+            } else {
+                CENTER_RATIO
+            }
 
         val maxTx: Float
         val maxTy: Float
@@ -2026,7 +2055,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     @Suppress("SuspiciousNameCombination")
     private fun sWidth(): Int {
         val rotation = getRequiredRotation()
-        return if (rotation == 90 || rotation == 270) {
+        return if (rotation == ORIENTATION_90 || rotation == ORIENTATION_270) {
             sHeight
         } else {
             sWidth
@@ -2039,7 +2068,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     @Suppress("SuspiciousNameCombination")
     private fun sHeight(): Int {
         val rotation = getRequiredRotation()
-        return if (rotation == 90 || rotation == 270) {
+        return if (rotation == ORIENTATION_90 || rotation == ORIENTATION_270) {
             sWidth
         } else {
             sHeight
@@ -2054,9 +2083,15 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     @AnyThread
     private fun fileSRect(sRect: Rect, target: Rect) {
         when (getRequiredRotation()) {
-            0 -> target.set(sRect)
-            90 -> target.set(sRect.top, sHeight - sRect.right, sRect.bottom, sHeight - sRect.left)
-            180 -> target.set(
+            ORIENTATION_0 -> target.set(sRect)
+            ORIENTATION_90 -> target.set(
+                sRect.top,
+                sHeight - sRect.right,
+                sRect.bottom,
+                sHeight - sRect.left
+            )
+
+            ORIENTATION_180 -> target.set(
                 sWidth - sRect.right,
                 sHeight - sRect.bottom,
                 sWidth - sRect.left,
@@ -2353,7 +2388,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         return when (type) {
             EASE_IN_OUT_QUAD -> easeInOutQuad(time, from, change, duration)
             EASE_OUT_QUAD -> easeOutQuad(time, from, change, duration)
-            else -> throw IllegalStateException("Unexpected easing type: $type")
+            else -> error("Unexpected easing type: $type")
         }
     }
 
@@ -2803,7 +2838,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
 
     /**
      * Enable or disable eager loading of tiles
-that appear on screen during gestures or animations,
+    that appear on screen during gestures or animations,
      * while the gesture or animation is still in progress. By default, this is enabled to improve
      * responsiveness, but it can result in tiles being loaded and discarded more rapidly than
      * necessary and reduce the animation frame rate on old/cheap devices. Disable this on older
@@ -2987,7 +3022,7 @@ that appear on screen during gestures or animations,
         private val targetScale: Float
         private val targetSCenter: PointF
         private val vFocus: PointF?
-        private var duration: Long = 500
+        private var duration: Long = DEFAULT_ANIM_DURATION.toLong()
         private var easing = EASE_IN_OUT_QUAD
         private var origin = ORIGIN_ANIM
         private var interruptible = true
@@ -3230,12 +3265,41 @@ that appear on screen during gestures or animations,
         const val TILE_SIZE_AUTO = Int.MAX_VALUE
         private const val MESSAGE_LONG_CLICK = 1
 
+        private const val DEFAULT_ANIM_DURATION = 500
+        private const val DEFAULT_MIN_DPI = 160
+        private const val DEFAULT_DOUBLE_TAP_ZOOM_DPI = 160
+        private const val DEFAULT_MIN_TILE_DPI = 320
+        private const val LONG_CLICK_DELAY = 600L
+        private const val FLING_MIN_DISTANCE = 50
+        private const val FLING_MIN_VELOCITY = 500
+        private const val FLING_VELOCITY_MULTIPLIER = 0.25f
+        private const val TOUCH_SLOP_PX = 5
+        private const val QUICK_SCALE_SPAN_DIFF_THRESHOLD = 0.03f
+        private const val QUICK_SCALE_MULTIPLIER_BASE = 0.5f
+
         private const val DEFAULT_QUICK_SCALE_THRESHOLD_DP = 20f
         private const val DEBUG_TEXT_SIZE_DP = 12
         private const val DEBUG_LINE_WIDTH_DP = 2
-        private const val DEBUG_CIRCLE_RADIUS_PX = 10f
+        private const val DEBUG_CIRCLE_RADIUS_PX = 10
         private const val DEBUG_OFFSET_PX = 5
         private const val DEBUG_LINE_SPACING_PX = 15
+        private const val DEBUG_CIRCLE_20_PX = 20
+        private const val DEBUG_CIRCLE_25_PX = 25
+        private const val DEBUG_CIRCLE_30_PX = 30
+        private const val DEBUG_CIRCLE_35_PX = 35
+        private const val DEBUG_OFFSET_Y_TRANS_PX = 30
+        private const val DEBUG_OFFSET_Y_CENTER_PX = 45
+        private const val DEBUG_OFFSET_Y_LOADING_PX = 35
+        private const val INIT_RESULT_COUNT = 3
+        private const val MIN_PINCH_TOUCH_COUNT = 2
+        private const val MAX_SINGLE_TOUCH_COUNT = 1
+        private const val PAN_EDGE_THRESHOLD_MULTIPLIER = 3
+        private const val DOUBLE_TAP_ZOOM_THRESHOLD = 0.9f
+        private const val CENTER_RATIO = 0.5f
+        private const val POLY_TO_POLY_COUNT = 4
+        private const val FULL_IMAGE_SAMPLE_SIZE = 1
+        private const val MATRIX_ARRAY_SIZE = 8
+        private const val DEBUG_LINE_WIDTH_PX = 1
 
         private var preferredBitmapConfig: Bitmap.Config? = Bitmap.Config.HARDWARE
 

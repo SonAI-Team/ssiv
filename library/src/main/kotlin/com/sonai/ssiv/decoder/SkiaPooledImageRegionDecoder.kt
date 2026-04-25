@@ -15,11 +15,17 @@ import android.util.Log
 import androidx.annotation.Keep
 import androidx.core.text.isDigitsOnly
 import com.sonai.ssiv.SubsamplingScaleImageView
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReadWriteLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
-import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.Channel
 
 /**
  * <p>
@@ -37,7 +43,9 @@ import kotlinx.coroutines.channels.Channel
  * [SkiaImageRegionDecoder] on old or low powered devices you could not test.
  * </p>
  */
-open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null) : ImageRegionDecoder {
+@Suppress("TooManyFunctions")
+open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null) :
+    ImageRegionDecoder {
 
     private var decoderPool: Channel<BitmapRegionDecoder>? = Channel(MAX_DECODERS)
     private val decoderLock: ReadWriteLock = ReentrantReadWriteLock(true)
@@ -62,11 +70,16 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         return this.imageDimensions
     }
 
+    @Suppress("TooGenericExceptionCaught")
     private fun lazyInit() {
         if (lazyInited.compareAndSet(false, true) && fileLength < Long.MAX_VALUE) {
             debug("Starting lazy init of additional decoders")
             scope.launch {
-                while (isActive && decoderPool != null && allowAdditionalDecoder(allDecoders.size, fileLength)) {
+                while (isActive && decoderPool != null && allowAdditionalDecoder(
+                        allDecoders.size,
+                        fileLength
+                    )
+                ) {
                     try {
                         val start = System.currentTimeMillis()
                         debug("Starting decoder")
@@ -86,24 +99,34 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         val context = this.context ?: return
         val uriString = uri.toString()
         var fileLength = Long.MAX_VALUE
-        
+
         val decoder = when {
             uriString.startsWith(RESOURCE_PREFIX) -> {
                 val id = uri.pathSegments.firstOrNull { it.isDigitsOnly() }?.toIntOrNull() ?: 0
-                runCatching { context.resources.openRawResourceFd(id).use { fileLength = it.length } }
+                runCatching {
+                    context.resources.openRawResourceFd(id).use { fileLength = it.length }
+                }
                 BitmapRegionDecoder.newInstance(context.resources.openRawResource(id))
             }
+
             uriString.startsWith(ASSET_PREFIX) -> {
                 val assetName = uriString.substring(ASSET_PREFIX.length)
                 runCatching { context.assets.openFd(assetName).use { fileLength = it.length } }
-                BitmapRegionDecoder.newInstance(context.assets.open(assetName, AssetManager.ACCESS_RANDOM))
+                BitmapRegionDecoder.newInstance(
+                    context.assets.open(
+                        assetName,
+                        AssetManager.ACCESS_RANDOM
+                    )
+                )
             }
+
             else -> {
                 val contentResolver = context.contentResolver
                 runCatching {
-                    contentResolver.openAssetFileDescriptor(uri, "r")?.use { fileLength = it.length }
+                    contentResolver.openAssetFileDescriptor(uri, "r")
+                        ?.use { fileLength = it.length }
                 }
-                contentResolver.openInputStream(uri)?.use { 
+                contentResolver.openInputStream(uri)?.use {
                     BitmapRegionDecoder.newInstance(it)
                 }
             }
@@ -125,21 +148,21 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         if (sRect.width() < imageDimensions.x || sRect.height() < imageDimensions.y) {
             lazyInit()
         }
-        
-        val pool = decoderPool ?: throw IllegalStateException("Cannot decode region after decoder has been recycled")
+
+        val pool = decoderPool ?: error("Cannot decode region after decoder has been recycled")
         val decoder = runBlocking { pool.receive() }
-        
+
         try {
             if (!decoder.isRecycled) {
                 val options = BitmapFactory.Options().apply {
                     inSampleSize = sampleSize
                     inPreferredConfig = bitmapConfig
                 }
-                return decoder.decodeRegion(sRect, options) ?: throw IllegalStateException(
+                return decoder.decodeRegion(sRect, options) ?: error(
                     "Skia image decoder returned null bitmap - image format may not be supported"
                 )
             }
-            throw IllegalStateException("Decoder is recycled")
+            error("Decoder is recycled")
         } finally {
             pool.trySend(decoder)
         }
@@ -174,20 +197,29 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
                 debug("No additional decoders allowed, reached hard limit ($MAX_DECODERS)")
                 false
             }
+
             numberOfDecoders * fileLength > MEMORY_THRESHOLD -> {
                 debug("No additional encoders allowed, reached hard memory limit ($MEMORY_THRESHOLD_MB Mb)")
                 false
             }
+
             numberOfDecoders >= getNumberOfCores() -> {
                 debug("No additional encoders allowed, limited by CPU cores (${getNumberOfCores()})")
                 false
             }
+
             isLowMemory() -> {
                 debug("No additional encoders allowed, memory is low")
                 false
             }
+
             else -> {
-                debug("Additional decoder allowed, current count is $numberOfDecoders, estimated native memory ${(fileLength * numberOfDecoders) / (1024 * 1024)}Mb")
+                val estimatedMemoryMb =
+                    (fileLength * numberOfDecoders) / (BYTES_PER_KB * BYTES_PER_KB)
+                debug(
+                    "Additional decoder allowed, current count is $numberOfDecoders, " +
+                            "estimated native memory ${estimatedMemoryMb}Mb"
+                )
                 true
             }
         }
@@ -219,7 +251,8 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
 
         private const val MAX_DECODERS = 4
         private const val MEMORY_THRESHOLD_MB = 20
-        private const val MEMORY_THRESHOLD = MEMORY_THRESHOLD_MB * 1024 * 1024
+        private const val BYTES_PER_KB = 1024
+        private const val MEMORY_THRESHOLD = MEMORY_THRESHOLD_MB * BYTES_PER_KB * BYTES_PER_KB
 
         private const val FILE_PREFIX = "file://"
         private const val ASSET_PREFIX = "${FILE_PREFIX}/android_asset/"

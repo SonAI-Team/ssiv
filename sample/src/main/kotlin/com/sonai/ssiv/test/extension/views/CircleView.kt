@@ -1,7 +1,10 @@
 package com.sonai.ssiv.test.extension.views
 
 import android.content.Context
-import android.graphics.*
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.PointF
 import android.util.AttributeSet
 import com.sonai.ssiv.SubsamplingScaleImageView
 

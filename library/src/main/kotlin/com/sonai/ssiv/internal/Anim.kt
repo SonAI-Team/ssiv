@@ -12,10 +12,14 @@ class Anim {
     var sCenterEndRequested: PointF? = null
     var vFocusStart: PointF? = null
     var vFocusEnd: PointF? = null
-    var duration = 500L
+    var duration = DEFAULT_DURATION
     var interruptible = true
     var easing = SubsamplingScaleImageView.EASE_IN_OUT_QUAD
     var origin = SubsamplingScaleImageView.ORIGIN_ANIM
     var time = System.currentTimeMillis()
     var listener: OnAnimationEventListener? = null
+
+    companion object {
+        private const val DEFAULT_DURATION = 500L
+    }
 }
