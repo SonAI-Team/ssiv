@@ -16,3 +16,6 @@ captures/
 
 # Misc
 .DS_Store
+
+# Wiki
+/docs/wiki
