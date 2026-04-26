@@ -1,5 +1,4 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     style="@style/fill"
     android:background="?attr/colorSurface">
 
@@ -23,27 +22,28 @@
         <ImageButton
             android:id="@+id/previous"
             style="@style/previousButton"
-            android:contentDescription="@string/button.previous"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/button.previous" />
 
         <ImageButton
             android:id="@+id/next"
             style="@style/nextButton"
-            android:contentDescription="@string/button.next"
-            android:background="?attr/selectableItemBackgroundBorderless" />
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/button.next" />
 
         <TextView
             android:id="@+id/note"
             style="@style/footerNote"
             android:layout_toStartOf="@id/next"
-            android:layout_toEndOf="@id/previous" />
+            android:layout_toEndOf="@id/previous"
+            android:text="@string/display.p2.text" />
 
     </RelativeLayout>
 
     <com.sonai.ssiv.SubsamplingScaleImageView
         android:id="@+id/imageView"
         style="@style/fill"
-        android:layout_below="@id/appbar"
-        android:layout_above="@id/footer" />
+        android:layout_above="@id/footer"
+        android:layout_below="@id/appbar" />
 
 </RelativeLayout>

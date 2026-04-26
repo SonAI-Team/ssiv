@@ -16,9 +16,9 @@ class ImageViewStateTest {
         val scale = 1.5f
         val center = PointF(100f, 200f)
         val orientation = 90
-        
+
         val state = ImageViewState(scale, center, orientation)
-        
+
         assertEquals(scale, state.scale)
         assertEquals(orientation, state.orientation)
         assertEquals(100f, state.center.x)

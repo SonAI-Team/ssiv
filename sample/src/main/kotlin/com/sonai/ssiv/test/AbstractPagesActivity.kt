@@ -76,8 +76,10 @@ abstract class AbstractPagesActivity protected constructor(
         }
         supportActionBar?.subtitle = getString(notes[pageNum].subtitle)
         findViewById<TextView>(R.id.note).setText(notes[pageNum].text)
-        findViewById<View>(R.id.next).visibility = if (pageNum >= notes.size - 1) View.INVISIBLE else View.VISIBLE
-        findViewById<View>(R.id.previous).visibility = if (pageNum <= 0) View.INVISIBLE else View.VISIBLE
+        findViewById<View>(R.id.next).visibility =
+            if (pageNum >= notes.size - 1) View.INVISIBLE else View.VISIBLE
+        findViewById<View>(R.id.previous).visibility =
+            if (pageNum <= 0) View.INVISIBLE else View.VISIBLE
         onPageChanged(pageNum)
     }
 

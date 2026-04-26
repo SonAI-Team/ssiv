@@ -11,7 +11,11 @@ import com.sonai.ssiv.test.extension.views.FreehandView
 
 class ExtensionFreehandFragment : Fragment() {
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
         val rootView = inflater.inflate(R.layout.extension_freehand_fragment, container, false)
         val activity = activity as? ExtensionActivity
         if (activity != null) {

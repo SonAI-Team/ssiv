@@ -31,7 +31,10 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.txt")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.txt"
+            )
         }
     }
 
@@ -55,7 +58,7 @@ dependencies {
     implementation(libs.androidx.exifinterface)
     implementation(libs.androidx.collection.ktx)
     implementation(libs.kotlinx.coroutines.android)
-    
+
     "javadocs"(libs.androidx.annotation)
     "javadocs"(libs.androidx.exifinterface)
 

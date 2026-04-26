@@ -1,5 +1,8 @@
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android" style="@style/fill">
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/fill">
 
-    <com.sonai.ssiv.SubsamplingScaleImageView style="@style/fill" android:id="@+id/imageView"/>
+    <com.sonai.ssiv.SubsamplingScaleImageView
+        android:id="@+id/imageView"
+        style="@style/fill" />
 
 </RelativeLayout>

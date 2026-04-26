@@ -56,8 +56,8 @@ interface ImageRegionDecoder {
     fun isReady(): Boolean
 
     /**
-    * This method will be called when the decoder is no longer required. It should clean up any resources still in use.
-    */
+     * This method will be called when the decoder is no longer required. It should clean up any resources still in use.
+     */
     fun recycle()
 
 }

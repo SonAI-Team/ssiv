@@ -36,7 +36,7 @@ class SubsamplingScaleImageViewTest {
     fun `test orientation settings`() {
         view.setOrientation(SubsamplingScaleImageView.ORIENTATION_90)
         assertEquals(90, view.getOrientation())
-        
+
         view.setOrientation(SubsamplingScaleImageView.ORIENTATION_180)
         assertEquals(180, view.getOrientation())
     }
@@ -45,13 +45,13 @@ class SubsamplingScaleImageViewTest {
     fun `test pan and zoom enabling`() {
         view.setPanEnabled(true)
         assertTrue(view.panEnabled())
-        
+
         view.setPanEnabled(false)
         assertFalse(view.panEnabled())
-        
+
         view.setZoomEnabled(true)
         assertTrue(view.zoomEnabled())
-        
+
         view.setZoomEnabled(false)
         assertFalse(view.zoomEnabled())
     }
@@ -60,7 +60,7 @@ class SubsamplingScaleImageViewTest {
     fun `test max and min scale`() {
         view.setMaxScale(5f)
         assertEquals(5f, view.getMaxScale())
-        
+
         view.setMinimumScaleType(SubsamplingScaleImageView.SCALE_TYPE_CUSTOM)
         view.setMinScale(0.1f)
         assertEquals(0.1f, view.getMinScale())

@@ -11,7 +11,11 @@ import com.sonai.ssiv.test.R
 
 class ImageDisplayRotateFragment : Fragment() {
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
         val rootView = inflater.inflate(R.layout.imagedisplay_rotate_fragment, container, false)
         val imageView = rootView.findViewById<SubsamplingScaleImageView>(R.id.imageView)
         imageView.setImage(ImageSource.asset("swissroad.jpg"))

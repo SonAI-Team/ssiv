@@ -15,8 +15,8 @@ import java.io.IOException
  * using Android's [ImageDecoder]. This provides high performance and supports
  * modern image formats and hardware acceleration.
  */
-class SkiaSSIVImageDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null) : SSIVImageDecoder {
-
+class SkiaSSIVImageDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null) :
+    SSIVImageDecoder {
     private val preferredConfig: Bitmap.Config = bitmapConfig
         ?: SubsamplingScaleImageView.getPreferredBitmapConfig()
         ?: Bitmap.Config.HARDWARE
@@ -27,10 +27,12 @@ class SkiaSSIVImageDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null
                 val id = uri.pathSegments.firstOrNull { it.isDigitsOnly() }?.toIntOrNull() ?: 0
                 ImageDecoder.createSource(context.resources, id)
             }
+
             uri.toString().startsWith(ASSET_PREFIX) -> {
                 val assetName = uri.toString().substring(ASSET_PREFIX.length)
                 ImageDecoder.createSource(context.assets, assetName)
             }
+
             else -> {
                 ImageDecoder.createSource(context.contentResolver, uri)
             }

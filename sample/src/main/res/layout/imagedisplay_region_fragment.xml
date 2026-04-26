@@ -1,25 +1,39 @@
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android" style="@style/fill">
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/fill">
 
-    <RelativeLayout style="@style/footer" android:id="@+id/footer">
+    <RelativeLayout
+        android:id="@+id/footer"
+        style="@style/footer">
 
-        <ImageView style="@style/previousButton" android:id="@+id/previous" android:contentDescription="@string/button.previous"/>
+        <ImageView
+            android:id="@+id/previous"
+            style="@style/previousButton"
+            android:contentDescription="@string/button.previous" />
 
-        <ImageView style="@style/nextButton" android:id="@+id/next" android:contentDescription="@string/button.next" android:visibility="invisible"/>
+        <ImageView
+            android:id="@+id/next"
+            style="@style/nextButton"
+            android:contentDescription="@string/button.next"
+            android:visibility="invisible" />
 
-        <ImageView style="@style/footerButton"
-                android:id="@+id/rotate"
-                android:layout_toStartOf="@id/next"
-                android:src="@drawable/rotate"
-                android:contentDescription="@string/button.rotate"/>
+        <ImageView
+            android:id="@+id/rotate"
+            style="@style/footerButton"
+            android:layout_toStartOf="@id/next"
+            android:contentDescription="@string/button.rotate"
+            android:src="@drawable/rotate" />
 
-        <TextView style="@style/footerNote"
-                android:id="@+id/note"
-                android:text="@string/display.p3.text"
-                android:layout_toStartOf="@id/rotate"
-                android:layout_toEndOf="@id/previous"/>
+        <TextView
+            android:id="@+id/note"
+            style="@style/footerNote"
+            android:layout_toStartOf="@id/rotate"
+            android:layout_toEndOf="@id/previous"
+            android:text="@string/display.p3.text" />
 
     </RelativeLayout>
 
-    <com.sonai.ssiv.SubsamplingScaleImageView style="@style/mainPanel" android:id="@+id/imageView"/>
+    <com.sonai.ssiv.SubsamplingScaleImageView
+        android:id="@+id/imageView"
+        style="@style/mainPanel" />
 
 </RelativeLayout>

@@ -12,7 +12,11 @@ import com.sonai.ssiv.test.extension.views.PinView
 
 class ExtensionPinFragment : Fragment() {
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
         val rootView = inflater.inflate(R.layout.extension_pin_fragment, container, false)
         val activity = activity as? ExtensionActivity
         if (activity != null) {

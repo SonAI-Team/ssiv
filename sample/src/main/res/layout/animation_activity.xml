@@ -1,5 +1,4 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     style="@style/fill"
     android:background="?attr/colorSurface">
 
@@ -15,29 +14,42 @@
 
     </com.google.android.material.appbar.AppBarLayout>
 
-    <RelativeLayout style="@style/footer" android:id="@+id/footer" android:layout_alignParentBottom="true">
+    <RelativeLayout
+        android:id="@+id/footer"
+        style="@style/footer"
+        android:layout_alignParentBottom="true">
 
-        <ImageView style="@style/previousButton" android:id="@+id/previous" android:contentDescription="@string/button.previous"/>
+        <ImageView
+            android:id="@+id/previous"
+            style="@style/previousButton"
+            android:layout_alignParentStart="true"
+            android:contentDescription="@string/button.previous" />
 
-        <ImageView style="@style/nextButton" android:id="@+id/next" android:contentDescription="@string/button.next"/>
+        <ImageView
+            android:id="@+id/next"
+            style="@style/nextButton"
+            android:layout_alignParentEnd="true"
+            android:contentDescription="@string/button.next" />
 
-        <ImageView style="@style/footerButton"
-                android:id="@+id/play"
-                android:layout_toStartOf="@id/next"
-                android:src="@drawable/play"
-                android:contentDescription="@string/button.animate"/>
+        <ImageView
+            android:id="@+id/play"
+            style="@style/footerButton"
+            android:layout_toStartOf="@id/next"
+            android:contentDescription="@string/button.animate"
+            android:src="@drawable/play" />
 
-        <TextView style="@style/footerNote"
-                android:id="@+id/note"
-                android:layout_toStartOf="@id/play"
-                android:layout_toEndOf="@id/previous"/>
+        <TextView
+            android:id="@+id/note"
+            style="@style/footerNote"
+            android:layout_toStartOf="@id/play"
+            android:layout_toEndOf="@id/previous" />
 
     </RelativeLayout>
 
     <com.sonai.ssiv.test.extension.views.PinView
         android:id="@+id/imageView"
         style="@style/fill"
-        android:layout_below="@id/appbar"
-        android:layout_above="@id/footer" />
+        android:layout_above="@id/footer"
+        android:layout_below="@id/appbar" />
 
 </RelativeLayout>

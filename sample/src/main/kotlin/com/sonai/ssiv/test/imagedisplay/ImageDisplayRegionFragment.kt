@@ -16,7 +16,11 @@ import com.sonai.ssiv.test.R
 
 class ImageDisplayRegionFragment : Fragment() {
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
         val rootView = inflater.inflate(R.layout.imagedisplay_region_fragment, container, false)
         val imageView = rootView.findViewById<SubsamplingScaleImageView>(R.id.imageView)
         imageView.setBitmapDecoderFactory(DecoderFactory { SkiaSSIVImageDecoder(Bitmap.Config.ARGB_8888) })

@@ -17,7 +17,11 @@ class ViewPagerFragment : Fragment() {
         this.asset = asset
     }
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
         val rootView = inflater.inflate(R.layout.view_pager_page, container, false)
 
         if (savedInstanceState != null) {

@@ -47,7 +47,7 @@ class ImageSourceTest {
     fun `test tiling configuration`() {
         val source = ImageSource.resource(1).tiling(false)
         assertFalse(source.tile)
-        
+
         source.tilingEnabled()
         assertTrue(source.tile)
     }
@@ -56,7 +56,7 @@ class ImageSourceTest {
     fun `test dimensions and region`() {
         val source = ImageSource.resource(1)
             .dimensions(1000, 2000)
-        
+
         assertEquals(1000, source.sWidth)
         assertEquals(2000, source.sHeight)
     }
@@ -65,7 +65,7 @@ class ImageSourceTest {
     fun `test region setting`() {
         val region = android.graphics.Rect(0, 0, 100, 100)
         val source = ImageSource.resource(1).region(region)
-        
+
         assertEquals(region, source.sRegion)
         assertTrue(source.tile)
         assertEquals(100, source.sWidth)

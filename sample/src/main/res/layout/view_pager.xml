@@ -1,5 +1,4 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     style="@style/fill"
     android:background="?attr/colorSurface">
 
@@ -15,31 +14,41 @@
 
     </com.google.android.material.appbar.AppBarLayout>
 
-    <RelativeLayout style="@style/footer" android:id="@+id/footer" android:layout_alignParentBottom="true">
+    <RelativeLayout
+        android:id="@+id/footer"
+        style="@style/footer"
+        android:layout_alignParentBottom="true">
 
-        <ImageView style="@style/previousButton" android:id="@+id/previous" android:contentDescription="@string/button.previous"/>
+        <ImageView
+            android:id="@+id/previous"
+            style="@style/previousButton"
+            android:contentDescription="@string/button.previous" />
 
-        <ImageView style="@style/nextButton" android:id="@+id/next" android:contentDescription="@string/button.next"/>
+        <ImageView
+            android:id="@+id/next"
+            style="@style/nextButton"
+            android:contentDescription="@string/button.next" />
 
-        <TextView style="@style/footerNote"
-                android:id="@+id/note"
-                android:layout_toStartOf="@id/next"
-                android:layout_toEndOf="@id/previous"/>
+        <TextView
+            android:id="@+id/note"
+            style="@style/footerNote"
+            android:layout_toStartOf="@id/next"
+            android:layout_toEndOf="@id/previous" />
 
     </RelativeLayout>
 
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/horizontal_pager"
         style="@style/fill"
-        android:visibility="gone"
+        android:layout_above="@id/footer"
         android:layout_below="@id/appbar"
-        android:layout_above="@id/footer" />
+        android:visibility="gone" />
 
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/vertical_pager"
         style="@style/fill"
-        android:visibility="gone"
+        android:layout_above="@id/footer"
         android:layout_below="@id/appbar"
-        android:layout_above="@id/footer" />
+        android:visibility="gone" />
 
 </RelativeLayout>

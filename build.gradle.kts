@@ -13,7 +13,7 @@ detekt {
 
 subprojects {
     apply(plugin = "io.gitlab.arturbosch.detekt")
-    
+
     detekt {
         config.setFrom(rootProject.files("config/detekt/detekt.yml"))
         buildUponDefaultConfig = true
