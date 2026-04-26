@@ -1,3 +1,12 @@
+---
+name: Bug report
+about: Create a report to help us improve
+title: ''
+labels: ''
+assignees: ''
+
+---
+
 *Please provide as much of the following information as possible. Please do not raise issues to ask
 for help developing your app.*
 
