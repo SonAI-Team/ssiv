@@ -228,7 +228,8 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     private var onLongClickListener: OnLongClickListener? = null
     private var longClickJob: Job? = null
 
-    private var scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var lastRefreshTime = 0L
 
     // Paint objects created once and reused for efficiency
     private var bitmapPaint: Paint? = null
@@ -691,6 +692,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                                 }
                                 val decoded =
                                     decoder.decodeRegion(tile.fileSRect!!, tile.sampleSize)
+                                decoded?.prepareToDraw()
                                 decoded
                                     ?: error("Decoder returned null bitmap")
                             } else {
@@ -716,7 +718,6 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             }
 
             if (bitmap != null) {
-                bitmap.prepareToDraw()
                 tile.bitmap = bitmap
                 tile.loading = false
                 onTileLoaded()
@@ -741,7 +742,9 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                 try {
                     val sourceUri = source.toString()
                     debug("BitmapLoadTask.doInBackground")
-                    bitmap = decoderFactory.make().decode(context, source)
+                    val decoded = decoderFactory.make().decode(context, source)
+                    decoded.prepareToDraw()
+                    bitmap = decoded
                     ExifUtils.getExifOrientation(context, sourceUri)
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to load bitmap", e)
@@ -755,7 +758,6 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             }
 
             if (bitmap != null && orientation != null) {
-                bitmap.prepareToDraw()
                 if (preview) {
                     onPreviewLoaded(bitmap)
                 } else {
@@ -1216,12 +1218,12 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
 
             // First check for missing tiles - if there are any we need the base layer underneath to avoid gaps
             var hasMissingTiles = false
-            for (tileMapEntry in tileMap.entries) {
-                if (tileMapEntry.key == sampleSize) {
-                    for (tile in tileMapEntry.value) {
-                        if (tile.visible && (tile.loading || tile.bitmap == null)) {
-                            hasMissingTiles = true
-                        }
+            val currentLayer = tileMap[sampleSize]
+            if (currentLayer != null) {
+                for (tile in currentLayer) {
+                    if (tile.visible && (tile.loading || tile.bitmap == null)) {
+                        hasMissingTiles = true
+                        break
                     }
                 }
             }
@@ -1243,25 +1245,29 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             tileBgPaint?.let {
                 canvas.drawRect(tile.vRect!!, it)
             }
-            if (matrix == null) {
-                matrix = Matrix()
-            }
-            matrix!!.reset()
-            setMatrixArray(
-                srcArray,
-                0f,
-                0f,
-                tile.bitmap!!.width.toFloat(),
-                0f,
-                tile.bitmap!!.width.toFloat(),
-                tile.bitmap!!.height.toFloat(),
-                0f,
-                tile.bitmap!!.height.toFloat()
-            )
             val rotation = getRequiredRotation()
-            setupDstArray(tile.vRect!!, rotation)
-            matrix!!.setPolyToPoly(srcArray, 0, dstArray, 0, POLY_TO_POLY_COUNT)
-            canvas.drawBitmap(tile.bitmap!!, matrix!!, bitmapPaint)
+            if (rotation == 0) {
+                canvas.drawBitmap(tile.bitmap!!, null, tile.vRect!!, bitmapPaint)
+            } else {
+                if (matrix == null) {
+                    matrix = Matrix()
+                }
+                matrix!!.reset()
+                setMatrixArray(
+                    srcArray,
+                    0f,
+                    0f,
+                    tile.bitmap!!.width.toFloat(),
+                    0f,
+                    tile.bitmap!!.width.toFloat(),
+                    tile.bitmap!!.height.toFloat(),
+                    0f,
+                    tile.bitmap!!.height.toFloat()
+                )
+                setupDstArray(tile.vRect!!, rotation)
+                matrix!!.setPolyToPoly(srcArray, 0, dstArray, 0, POLY_TO_POLY_COUNT)
+                canvas.drawBitmap(tile.bitmap!!, matrix!!, bitmapPaint)
+            }
             if (debug) {
                 canvas.drawRect(tile.vRect!!, debugLinePaint!!)
             }
@@ -1631,11 +1637,21 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     }
 
     private fun refreshRequiredTiles(load: Boolean) {
+        if (load) {
+            val now = System.currentTimeMillis()
+            if (now - lastRefreshTime < REFRESH_THROTTLE_MS) {
+                return
+            }
+            lastRefreshTime = now
+        }
+
+        val marginX = width * 0.5f
+        val marginY = height * 0.5f
         val sVisRect = RectF(
-            viewToSourceX(0f),
-            viewToSourceY(0f),
-            viewToSourceX(width.toFloat()),
-            viewToSourceY(height.toFloat())
+            viewToSourceX(-marginX),
+            viewToSourceY(-marginY),
+            viewToSourceX(width + marginX),
+            viewToSourceY(height + marginY)
         )
         tileManager.refreshRequiredTiles(
             TileManager.RefreshParams(
@@ -1861,7 +1877,6 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     /**
      * Called by worker task when a tile has loaded. Redraws the view.
      */
-    @Synchronized
     private fun onTileLoaded() {
         debug("onTileLoaded")
         checkReady()
@@ -3011,6 +3026,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         // overrides for the dimensions of the generated tiles
         const val TILE_SIZE_AUTO = Int.MAX_VALUE
         private const val MESSAGE_LONG_CLICK = 1
+        private const val REFRESH_THROTTLE_MS = 8L
 
         private const val DEFAULT_ANIM_DURATION = 500
         private const val DEFAULT_MIN_DPI = 160

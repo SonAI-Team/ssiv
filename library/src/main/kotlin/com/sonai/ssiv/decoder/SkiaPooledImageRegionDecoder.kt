@@ -47,7 +47,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
 open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null) :
     ImageRegionDecoder {
 
-    private var decoderPool: Channel<BitmapRegionDecoder>? = Channel(MAX_DECODERS)
+    private var decoderPool: Channel<BitmapRegionDecoder>? = Channel(32)
     private val decoderLock: ReadWriteLock = ReentrantReadWriteLock(true)
     private val allDecoders = ArrayList<BitmapRegionDecoder>()
 
@@ -63,11 +63,49 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
     private val lazyInited = AtomicBoolean(false)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    private var maxDecoders = 4
+    private var memoryThresholdMb = 20
+    private var memoryThreshold = 20L * 1024 * 1024
+
     override fun init(context: Context, uri: Uri): Point {
         this.context = context
         this.uri = uri
+        calculateLimits(context)
         initialiseDecoder()
         return this.imageDimensions
+    }
+
+    private fun calculateLimits(context: Context) {
+        val activityManager = context.getSystemService(ACTIVITY_SERVICE) as? ActivityManager
+        if (activityManager != null) {
+            val memoryInfo = ActivityManager.MemoryInfo()
+            activityManager.getMemoryInfo(memoryInfo)
+            val totalRamGb = memoryInfo.totalMem.toDouble() / (BYTES_PER_KB * BYTES_PER_KB * BYTES_PER_KB)
+
+            when {
+                totalRamGb > 6 -> {
+                    maxDecoders = 16
+                    memoryThresholdMb = 512
+                }
+
+                totalRamGb > 4 -> {
+                    maxDecoders = 12
+                    memoryThresholdMb = 256
+                }
+
+                totalRamGb > 2 -> {
+                    maxDecoders = 8
+                    memoryThresholdMb = 128
+                }
+
+                else -> {
+                    maxDecoders = 4
+                    memoryThresholdMb = 64
+                }
+            }
+            memoryThreshold = memoryThresholdMb.toLong() * BYTES_PER_KB * BYTES_PER_KB
+            debug("Device RAM: ${"%.2f".format(totalRamGb)}GB. Limits: maxDecoders=$maxDecoders, threshold=${memoryThresholdMb}MB")
+        }
     }
 
     @Suppress("TooGenericExceptionCaught")
@@ -169,7 +207,12 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
     }
 
     override fun isReady(): Boolean {
-        return allDecoders.isNotEmpty() && allDecoders.all { !it.isRecycled }
+        decoderLock.readLock().lock()
+        try {
+            return allDecoders.isNotEmpty() && allDecoders.all { !it.isRecycled }
+        } finally {
+            decoderLock.readLock().unlock()
+        }
     }
 
     override fun recycle() {
@@ -193,23 +236,23 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
 
     protected open fun allowAdditionalDecoder(numberOfDecoders: Int, fileLength: Long): Boolean {
         return when {
-            numberOfDecoders >= MAX_DECODERS -> {
-                debug("No additional decoders allowed, reached hard limit ($MAX_DECODERS)")
+            numberOfDecoders >= maxDecoders -> {
+                debug("No additional decoders allowed, reached hard limit ($maxDecoders)")
                 false
             }
 
-            numberOfDecoders * fileLength > MEMORY_THRESHOLD -> {
-                debug("No additional encoders allowed, reached hard memory limit ($MEMORY_THRESHOLD_MB Mb)")
+            numberOfDecoders * fileLength > memoryThreshold -> {
+                debug("No additional decoders allowed, reached hard memory limit ($memoryThresholdMb Mb)")
                 false
             }
 
             numberOfDecoders >= getNumberOfCores() -> {
-                debug("No additional encoders allowed, limited by CPU cores (${getNumberOfCores()})")
+                debug("No additional decoders allowed, limited by CPU cores (${getNumberOfCores()})")
                 false
             }
 
             isLowMemory() -> {
-                debug("No additional encoders allowed, memory is low")
+                debug("No additional decoders allowed, memory is low")
                 false
             }
 
@@ -224,7 +267,6 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
             }
         }
     }
-
 
     private fun getNumberOfCores(): Int = Runtime.getRuntime().availableProcessors()
 
@@ -249,10 +291,7 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         private val TAG = SkiaPooledImageRegionDecoder::class.java.simpleName
         private var debug = false
 
-        private const val MAX_DECODERS = 4
-        private const val MEMORY_THRESHOLD_MB = 20
         private const val BYTES_PER_KB = 1024
-        private const val MEMORY_THRESHOLD = MEMORY_THRESHOLD_MB * BYTES_PER_KB * BYTES_PER_KB
 
         private const val FILE_PREFIX = "file://"
         private const val ASSET_PREFIX = "${FILE_PREFIX}/android_asset/"

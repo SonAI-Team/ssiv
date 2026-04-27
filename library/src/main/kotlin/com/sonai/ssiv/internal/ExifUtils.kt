@@ -47,7 +47,7 @@ internal object ExifUtils {
                         Log.w(TAG, "Unsupported orientation: $orientationValue")
                     }
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 Log.w(TAG, "Could not get orientation of image from media store")
             } finally {
                 cursor?.close()
@@ -83,7 +83,7 @@ internal object ExifUtils {
                         Log.w(TAG, "Unsupported EXIF orientation: $orientationAttr")
                     }
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 Log.w(TAG, "Could not get EXIF orientation of image")
             }
         }

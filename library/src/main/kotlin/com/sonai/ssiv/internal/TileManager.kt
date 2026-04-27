@@ -6,16 +6,13 @@ import android.graphics.RectF
 import com.sonai.ssiv.decoder.ImageRegionDecoder
 import kotlin.math.min
 
-/**
- * Manages the tiles for SubsamplingScaleImageView.
- */
 class TileManager {
+
     companion object {
         private const val TILE_SIZE_RATIO = 1.25f
     }
 
     var tileMap: MutableMap<Int, List<Tile>>? = null
-        private set
 
     data class TileMapInitParams(
         val maxTileDimensions: Point,
@@ -93,9 +90,23 @@ class TileManager {
 
         val sampleSize = min(params.fullImageSampleSize, params.calculateInSampleSize(params.scale))
 
+        // First check for missing tiles in the target sample size
+        var hasMissingTiles = false
+        val targetTiles = currentTileMap[sampleSize]
+        if (targetTiles != null) {
+            for (tile in targetTiles) {
+                if (tileVisible(tile, params.sVisRect)) {
+                    if (tile.loading || tile.bitmap == null) {
+                        hasMissingTiles = true
+                        break
+                    }
+                }
+            }
+        }
+
         for (tileMapEntry in currentTileMap.entries) {
             for (tile in tileMapEntry.value) {
-                updateTile(tile, sampleSize, params)
+                updateTile(tile, sampleSize, hasMissingTiles, params)
             }
         }
     }
@@ -103,15 +114,9 @@ class TileManager {
     private fun updateTile(
         tile: Tile,
         sampleSize: Int,
+        hasMissingTiles: Boolean,
         params: RefreshParams
     ) {
-        if (tile.sampleSize < sampleSize ||
-            (tile.sampleSize > sampleSize && tile.sampleSize != params.fullImageSampleSize)
-        ) {
-            tile.visible = false
-            tile.bitmap?.recycle()
-            tile.bitmap = null
-        }
         if (tile.sampleSize == sampleSize) {
             if (tileVisible(tile, params.sVisRect)) {
                 tile.visible = true
@@ -125,20 +130,31 @@ class TileManager {
             }
         } else if (tile.sampleSize == params.fullImageSampleSize) {
             tile.visible = true
+        } else {
+            // Not target sample size and not base layer.
+            // If we have missing tiles in the target sample size, keep visible tiles of other sizes
+            // to avoid flashing. Otherwise, recycle them.
+            if (!hasMissingTiles || !tileVisible(tile, params.sVisRect)) {
+                tile.visible = false
+                tile.bitmap?.recycle()
+                tile.bitmap = null
+            }
         }
     }
 
     private fun tileVisible(tile: Tile, sVisRect: RectF): Boolean {
-        val sRect = tile.sRect ?: return false
-        return !(sVisRect.left > sRect.right || sRect.left > sVisRect.right ||
-                sVisRect.top > sRect.bottom || sRect.top > sVisRect.bottom)
+        return !(sVisRect.left > (tile.sRect?.right ?: 0) ||
+            (tile.sRect?.left ?: 0) > sVisRect.right ||
+            sVisRect.top > (tile.sRect?.bottom ?: 0) ||
+            (tile.sRect?.top ?: 0) > sVisRect.bottom)
     }
 
     fun clear() {
-        tileMap?.values?.forEach { tiles ->
-            tiles.forEach { tile ->
+        tileMap?.values?.forEach { tileList ->
+            tileList.forEach { tile ->
                 tile.bitmap?.recycle()
                 tile.bitmap = null
+                tile.loading = false
             }
         }
         tileMap = null
