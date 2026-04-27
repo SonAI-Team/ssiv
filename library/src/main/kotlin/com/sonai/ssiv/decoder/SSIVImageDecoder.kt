@@ -3,6 +3,7 @@ package com.sonai.ssiv.decoder
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
+import java.nio.ByteBuffer
 
 /**
  * Interface for image decoding classes, allowing the default [android.graphics.BitmapFactory]
@@ -26,5 +27,18 @@ interface SSIVImageDecoder {
      */
     @Throws(Exception::class)
     fun decode(context: Context, uri: Uri): Bitmap
+
+    /**
+     * Decode an image from a [ByteBuffer].
+     *
+     * @param context Application context
+     * @param buffer ByteBuffer containing the image data
+     * @return the decoded bitmap
+     * @throws Exception if decoding fails.
+     */
+    @Throws(Exception::class)
+    fun decode(context: Context, buffer: ByteBuffer): Bitmap {
+        throw UnsupportedOperationException("ByteBuffer decoding not supported")
+    }
 
 }

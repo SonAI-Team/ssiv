@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Point
 import android.graphics.Rect
 import android.net.Uri
+import java.nio.ByteBuffer
 
 /**
  * Interface for image decoding classes, allowing the default [android.graphics.BitmapRegionDecoder]
@@ -28,6 +29,18 @@ interface ImageRegionDecoder {
      */
     @Throws(Exception::class)
     fun init(context: Context, uri: Uri): Point
+
+    /**
+     * Initialize the decoder from a [ByteBuffer].
+     * @param context Application context.
+     * @param buffer ByteBuffer containing the image data.
+     * @return Dimensions of the image.
+     * @throws Exception if initialisation fails.
+     */
+    @Throws(Exception::class)
+    fun init(context: Context, buffer: ByteBuffer): Point {
+        throw UnsupportedOperationException("ByteBuffer decoding not supported")
+    }
 
     /**
      * Decode a region of the image with the given sample size. This method is called off the UI

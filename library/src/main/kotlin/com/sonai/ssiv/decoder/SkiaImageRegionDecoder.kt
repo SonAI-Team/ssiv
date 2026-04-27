@@ -12,6 +12,7 @@ import android.net.Uri
 import androidx.annotation.Keep
 import androidx.core.text.isDigitsOnly
 import com.sonai.ssiv.SubsamplingScaleImageView
+import java.nio.ByteBuffer
 import java.util.concurrent.locks.Lock
 import java.util.concurrent.locks.ReadWriteLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
@@ -65,6 +66,25 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
         }
         decoder = newDecoder
         return Point(newDecoder!!.width, newDecoder.height)
+    }
+
+    override fun init(context: Context, buffer: ByteBuffer): Point {
+        val stream = object : java.io.InputStream() {
+            override fun read(): Int {
+                return if (!buffer.hasRemaining()) -1 else buffer.get().toInt() and 0xFF
+            }
+
+            override fun read(b: ByteArray, off: Int, len: Int): Int {
+                if (!buffer.hasRemaining()) return -1
+                val count = minOf(len, buffer.remaining())
+                buffer.get(b, off, count)
+                return count
+            }
+        }
+        val newDecoder = BitmapRegionDecoder.newInstance(stream)
+            ?: throw IllegalArgumentException("Unable to initialise with ByteBuffer")
+        decoder = newDecoder
+        return Point(newDecoder.width, newDecoder.height)
     }
 
     override fun decodeRegion(sRect: Rect, sampleSize: Int): Bitmap {

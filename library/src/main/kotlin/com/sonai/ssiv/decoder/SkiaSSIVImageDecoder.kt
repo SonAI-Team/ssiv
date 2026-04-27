@@ -9,6 +9,7 @@ import androidx.annotation.Keep
 import androidx.core.text.isDigitsOnly
 import com.sonai.ssiv.SubsamplingScaleImageView
 import java.io.IOException
+import java.nio.ByteBuffer
 
 /**
  * Default implementation of [SSIVImageDecoder]
@@ -47,6 +48,20 @@ class SkiaSSIVImageDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null
             }
         } catch (e: IOException) {
             throw IllegalStateException("ImageDecoder failed to decode bitmap", e)
+        }
+    }
+
+    override fun decode(context: Context, buffer: ByteBuffer): Bitmap {
+        val source = ImageDecoder.createSource(buffer)
+        return try {
+            ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                if (preferredConfig == Bitmap.Config.HARDWARE) {
+                    decoder.allocator = ImageDecoder.ALLOCATOR_HARDWARE
+                }
+                decoder.isMutableRequired = false
+            }
+        } catch (e: IOException) {
+            throw IllegalStateException("ImageDecoder failed to decode bitmap from ByteBuffer", e)
         }
     }
 

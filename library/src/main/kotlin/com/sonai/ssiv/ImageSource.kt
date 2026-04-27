@@ -7,6 +7,7 @@ import androidx.core.net.toUri
 import java.io.File
 import java.io.UnsupportedEncodingException
 import java.net.URLDecoder
+import java.nio.ByteBuffer
 
 /**
  * Helper class used to set the source and additional attributes from a variety of sources. Supports
@@ -19,6 +20,7 @@ class ImageSource {
 
     internal val uri: Uri?
     internal val bitmap: Bitmap?
+    internal val buffer: ByteBuffer?
     internal val resource: Int?
     internal var tile: Boolean = false
         private set
@@ -34,11 +36,20 @@ class ImageSource {
     private constructor(bitmap: Bitmap, cached: Boolean) {
         this.bitmap = bitmap
         this.uri = null
+        this.buffer = null
         this.resource = null
         this.tile = false
         this.sWidth = bitmap.width
         this.sHeight = bitmap.height
         this.isCached = cached
+    }
+
+    private constructor(buffer: ByteBuffer) {
+        this.bitmap = null
+        this.uri = null
+        this.buffer = buffer
+        this.resource = null
+        this.tile = true
     }
 
     private constructor(uri: Uri) {
@@ -57,6 +68,7 @@ class ImageSource {
         }
         this.bitmap = null
         this.uri = mutableUri
+        this.buffer = null
         this.resource = null
         this.tile = true
     }
@@ -64,6 +76,7 @@ class ImageSource {
     private constructor(resource: Int) {
         this.bitmap = null
         this.uri = null
+        this.buffer = null
         this.resource = resource
         this.tile = true
     }
@@ -95,6 +108,9 @@ class ImageSource {
         @JvmStatic
         @Suppress("unused")
         fun uri(uri: Uri): ImageSource = ImageSource(uri)
+
+        @JvmStatic
+        fun buffer(buffer: ByteBuffer): ImageSource = ImageSource(buffer)
 
         @JvmStatic
         fun bitmap(bitmap: Bitmap): ImageSource = ImageSource(bitmap, false)

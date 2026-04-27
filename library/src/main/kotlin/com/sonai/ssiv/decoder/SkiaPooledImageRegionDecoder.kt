@@ -23,6 +23,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReadWriteLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
@@ -57,6 +58,7 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
 
     private var context: Context? = null
     private var uri: Uri? = null
+    private var buffer: ByteBuffer? = null
 
     private var fileLength = Long.MAX_VALUE
     private val imageDimensions = Point(0, 0)
@@ -70,6 +72,16 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
     override fun init(context: Context, uri: Uri): Point {
         this.context = context
         this.uri = uri
+        this.buffer = null
+        calculateLimits(context)
+        initialiseDecoder()
+        return this.imageDimensions
+    }
+
+    override fun init(context: Context, buffer: ByteBuffer): Point {
+        this.context = context
+        this.buffer = buffer
+        this.uri = null
         calculateLimits(context)
         initialiseDecoder()
         return this.imageDimensions
@@ -133,42 +145,61 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
     }
 
     private fun initialiseDecoder() {
-        val uri = this.uri ?: return
         val context = this.context ?: return
-        val uriString = uri.toString()
         var fileLength = Long.MAX_VALUE
 
-        val decoder = when {
-            uriString.startsWith(RESOURCE_PREFIX) -> {
-                val id = uri.pathSegments.firstOrNull { it.isDigitsOnly() }?.toIntOrNull() ?: 0
-                runCatching {
-                    context.resources.openRawResourceFd(id).use { fileLength = it.length }
+        val decoder = if (buffer != null) {
+            val buf = buffer!!
+            buf.position(0)
+            fileLength = buf.remaining().toLong()
+            val stream = object : java.io.InputStream() {
+                override fun read(): Int {
+                    return if (!buf.hasRemaining()) -1 else buf.get().toInt() and 0xFF
                 }
-                BitmapRegionDecoder.newInstance(context.resources.openRawResource(id))
-            }
 
-            uriString.startsWith(ASSET_PREFIX) -> {
-                val assetName = uriString.substring(ASSET_PREFIX.length)
-                runCatching { context.assets.openFd(assetName).use { fileLength = it.length } }
-                BitmapRegionDecoder.newInstance(
-                    context.assets.open(
-                        assetName,
-                        AssetManager.ACCESS_RANDOM
+                override fun read(b: ByteArray, off: Int, len: Int): Int {
+                    if (!buf.hasRemaining()) return -1
+                    val count = minOf(len, buf.remaining())
+                    buf.get(b, off, count)
+                    return count
+                }
+            }
+            BitmapRegionDecoder.newInstance(stream)
+        } else {
+            val uri = this.uri ?: return
+            val uriString = uri.toString()
+            when {
+                uriString.startsWith(RESOURCE_PREFIX) -> {
+                    val id = uri.pathSegments.firstOrNull { it.isDigitsOnly() }?.toIntOrNull() ?: 0
+                    runCatching {
+                        context.resources.openRawResourceFd(id).use { fileLength = it.length }
+                    }
+                    BitmapRegionDecoder.newInstance(context.resources.openRawResource(id))
+                }
+
+                uriString.startsWith(ASSET_PREFIX) -> {
+                    val assetName = uriString.substring(ASSET_PREFIX.length)
+                    runCatching { context.assets.openFd(assetName).use { fileLength = it.length } }
+                    BitmapRegionDecoder.newInstance(
+                        context.assets.open(
+                            assetName,
+                            AssetManager.ACCESS_RANDOM
+                        )
                     )
-                )
-            }
+                }
 
-            else -> {
-                val contentResolver = context.contentResolver
-                runCatching {
-                    contentResolver.openAssetFileDescriptor(uri, "r")
-                        ?.use { fileLength = it.length }
-                }
-                contentResolver.openInputStream(uri)?.use {
-                    BitmapRegionDecoder.newInstance(it)
+                else -> {
+                    val contentResolver = context.contentResolver
+                    runCatching {
+                        contentResolver.openAssetFileDescriptor(uri, "r")
+                            ?.use { fileLength = it.length }
+                    }
+                    contentResolver.openInputStream(uri)?.use {
+                        BitmapRegionDecoder.newInstance(it)
+                    }
                 }
             }
-        } ?: throw IllegalArgumentException("Unable to initialise decoder for $uri")
+        } ?: throw IllegalArgumentException("Unable to initialise decoder")
 
         this.fileLength = fileLength
         this.imageDimensions.set(decoder.width, decoder.height)
@@ -225,6 +256,7 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
             decoderPool = null
             context = null
             uri = null
+            buffer = null
         } finally {
             decoderLock.writeLock().unlock()
         }

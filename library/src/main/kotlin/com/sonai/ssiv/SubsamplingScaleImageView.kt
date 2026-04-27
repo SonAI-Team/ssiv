@@ -1,5 +1,6 @@
 package com.sonai.ssiv
 
+import java.nio.ByteBuffer
 import android.content.ContentResolver
 import android.content.Context
 import android.graphics.Bitmap
@@ -97,6 +98,9 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
 
     // Specifies if a cache handler is also referencing the bitmap. Do not recycle if so.
     private var bitmapIsCached = false
+
+    // ByteBuffer image source
+    private var buffer: ByteBuffer? = null
 
     // Uri of full size image
     private var uri: Uri? = null
@@ -218,6 +222,8 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     // Scale and center listener
     private var onStateChangedListener: OnStateChangedListener? = null
     private val onStateChangedListeners = CopyOnWriteArrayList<OnStateChangedListener>()
+
+    private var onEdgeReachedListener: OnEdgeReachedListener? = null
 
     private val _events = MutableSharedFlow<SSIVEvent>(extraBufferCapacity = 16)
     val events = _events.asSharedFlow()
@@ -399,6 +405,8 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             if (previewSource.bitmap != null) {
                 this.bitmapIsCached = previewSource.isCached
                 onPreviewLoaded(previewSource.bitmap)
+            } else if (previewSource.buffer != null) {
+                executeBitmapLoadTask(context, bitmapDecoderFactory, previewSource.buffer, true)
             } else {
                 var uri = previewSource.uri
                 if (uri == null && previewSource.resource != null) {
@@ -421,6 +429,14 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             )
         } else if (imageSource.bitmap != null) {
             onImageLoaded(imageSource.bitmap, ORIENTATION_0, imageSource.isCached)
+        } else if (imageSource.buffer != null) {
+            sRegion = imageSource.sRegion
+            buffer = imageSource.buffer
+            if (imageSource.tile || sRegion != null) {
+                executeTilesInitTask(context, regionDecoderFactory, buffer!!)
+            } else {
+                executeBitmapLoadTask(context, bitmapDecoderFactory, buffer!!, false)
+            }
         } else {
             sRegion = imageSource.sRegion
             uri = imageSource.uri
@@ -469,6 +485,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         sRect = null
         if (newImage) {
             uri = null
+            buffer = null
             decoderLock.writeLock().lock()
             try {
                 decoder?.recycle()
@@ -642,31 +659,63 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                     val makeDecoder = decoderFactory.make()
                     decoder = makeDecoder
                     val dimensions = makeDecoder.init(context, source)
-                    var sWidth = dimensions.x
-                    var sHeight = dimensions.y
-                    val exifOrientation = ExifUtils.getExifOrientation(context, sourceUri)
-                    sRegion?.let { region ->
-                        region.left = max(0, region.left)
-                        region.top = max(0, region.top)
-                        region.right = min(sWidth, region.right)
-                        region.bottom = min(sHeight, region.bottom)
-                        sWidth = region.width()
-                        sHeight = region.height()
-                    }
-                    intArrayOf(sWidth, sHeight, exifOrientation)
+                    processTilesInitResult(dimensions, ExifUtils.getExifOrientation(context, sourceUri))
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to initialise bitmap decoder", e)
                     exception = e
                     null
                 }
             }
+            handleTilesInitResult(decoder, result, exception)
+        }
+    }
 
-            if (decoder != null && result != null && result.size == INIT_RESULT_COUNT) {
-                onTilesInited(decoder, result[0], result[1], result[2])
-            } else if (exception != null) {
-                onImageEventListener?.onImageLoadError(exception)
-                onImageEventListeners.forEach { it.onImageLoadError(exception) }
+    private fun executeTilesInitTask(
+        context: Context,
+        decoderFactory: DecoderFactory<out ImageRegionDecoder>,
+        buffer: ByteBuffer
+    ) {
+        debug("executeTilesInitTask from ByteBuffer")
+        scope.launch {
+            var decoder: ImageRegionDecoder? = null
+            var exception: Exception? = null
+            val result = withContext(Dispatchers.IO) {
+                try {
+                    debug("TilesInitTask.doInBackground (ByteBuffer)")
+                    val makeDecoder = decoderFactory.make()
+                    decoder = makeDecoder
+                    val dimensions = makeDecoder.init(context, buffer)
+                    processTilesInitResult(dimensions, ORIENTATION_0)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to initialise bitmap decoder from ByteBuffer", e)
+                    exception = e
+                    null
+                }
             }
+            handleTilesInitResult(decoder, result, exception)
+        }
+    }
+
+    private fun processTilesInitResult(dimensions: Point, exifOrientation: Int): IntArray {
+        var sWidth = dimensions.x
+        var sHeight = dimensions.y
+        sRegion?.let { region ->
+            region.left = max(0, region.left)
+            region.top = max(0, region.top)
+            region.right = min(sWidth, region.right)
+            region.bottom = min(sHeight, region.bottom)
+            sWidth = region.width()
+            sHeight = region.height()
+        }
+        return intArrayOf(sWidth, sHeight, exifOrientation)
+    }
+
+    private fun handleTilesInitResult(decoder: ImageRegionDecoder?, result: IntArray?, exception: Exception?) {
+        if (decoder != null && result != null && result.size == INIT_RESULT_COUNT) {
+            onTilesInited(decoder, result[0], result[1], result[2])
+        } else if (exception != null) {
+            onImageEventListener?.onImageLoadError(exception)
+            onImageEventListeners.forEach { it.onImageLoadError(exception) }
         }
     }
 
@@ -762,6 +811,50 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                     onPreviewLoaded(bitmap)
                 } else {
                     onImageLoaded(bitmap, orientation, false)
+                }
+            } else if (exception != null) {
+                if (preview) {
+                    onImageEventListener?.onPreviewLoadError(exception)
+                    onImageEventListeners.forEach { it.onPreviewLoadError(exception) }
+                    _events.tryEmit(SSIVEvent.OnPreviewLoadError(exception))
+                } else {
+                    onImageEventListener?.onImageLoadError(exception)
+                    onImageEventListeners.forEach { it.onImageLoadError(exception) }
+                    _events.tryEmit(SSIVEvent.OnImageLoadError(exception))
+                }
+            }
+        }
+    }
+
+    private fun executeBitmapLoadTask(
+        context: Context,
+        decoderFactory: DecoderFactory<out SSIVImageDecoder>,
+        buffer: ByteBuffer,
+        preview: Boolean
+    ) {
+        scope.launch {
+            var bitmap: Bitmap? = null
+            var exception: Exception? = null
+            withContext(Dispatchers.IO) {
+                try {
+                    debug("BitmapLoadTask.doInBackground (ByteBuffer)")
+                    val decoded = decoderFactory.make().decode(context, buffer)
+                    decoded.prepareToDraw()
+                    bitmap = decoded
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to load bitmap from ByteBuffer", e)
+                    exception = e
+                } catch (e: OutOfMemoryError) {
+                    Log.e(TAG, "Failed to load bitmap from ByteBuffer - OutOfMemoryError", e)
+                    exception = RuntimeException(e)
+                }
+            }
+
+            if (bitmap != null) {
+                if (preview) {
+                    onPreviewLoaded(bitmap)
+                } else {
+                    onImageLoaded(bitmap, ORIENTATION_0, false)
                 }
             } else if (exception != null) {
                 if (preview) {
@@ -1609,7 +1702,11 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             } finally {
                 decoderLock.writeLock().unlock()
             }
-            executeBitmapLoadTask(context, bitmapDecoderFactory, uri!!, false)
+            if (buffer != null) {
+                executeBitmapLoadTask(context, bitmapDecoderFactory, buffer!!, false)
+            } else {
+                executeBitmapLoadTask(context, bitmapDecoderFactory, uri!!, false)
+            }
 
         } else {
 
@@ -1664,6 +1761,18 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                 { d, t -> executeTileLoadTask(d, t) }
             )
         )
+    }
+
+    fun setOnEdgeReachedListener(listener: OnEdgeReachedListener?) {
+        this.onEdgeReachedListener = listener
+    }
+
+    interface OnEdgeReachedListener {
+        fun onEdgeReached(left: Boolean, top: Boolean, right: Boolean, bottom: Boolean)
+    }
+
+    private fun notifyEdgeReached(left: Boolean, top: Boolean, right: Boolean, bottom: Boolean) {
+        onEdgeReachedListener?.onEdgeReached(left, top, right, bottom)
     }
 
     /**
@@ -1814,24 +1923,74 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         fitToBounds(center, satTemp!!)
         scale = satTemp!!.scale
         vTranslate!!.set(satTemp!!.vTranslate)
-        if (init && minimumScaleType != SCALE_TYPE_START) {
-            vTranslate!!.set(
-                vTranslateForSCenter(
-                    (sWidth() / 2).toFloat(),
-                    (sHeight() / 2).toFloat(),
-                    scale
+        if (init) {
+            if (minimumScaleType == SCALE_TYPE_START || minimumScaleType == SCALE_TYPE_FIT_WIDTH) {
+                vTranslate!!.set(0f, 0f)
+            } else {
+                vTranslate!!.set(
+                    vTranslateForSCenter(
+                        (sWidth() / 2).toFloat(),
+                        (sHeight() / 2).toFloat(),
+                        scale
+                    )
                 )
-            )
+            }
+            fitToBounds(center)
         }
+        checkEdges()
+    }
+
+    private fun checkEdges() {
+        val translate = vTranslate ?: return
+        if (onEdgeReachedListener == null) return
+
+        val scaleWidth = scale * sWidth()
+        val scaleHeight = scale * sHeight()
+
+        val xPaddingRatio =
+            if (paddingLeft > 0 || paddingRight > 0) {
+                paddingLeft.toFloat() / (paddingLeft + paddingRight)
+            } else {
+                CENTER_RATIO
+            }
+        val yPaddingRatio =
+            if (paddingTop > 0 || paddingBottom > 0) {
+                paddingTop.toFloat() / (paddingTop + paddingBottom)
+            } else {
+                CENTER_RATIO
+            }
+
+        val maxTx: Float
+        val minTx: Float
+        if (panLimit == PAN_LIMIT_CENTER && isReady) {
+            maxTx = max(0f, (width / 2).toFloat())
+            minTx = width / 2 - scaleWidth
+        } else {
+            maxTx = max(0f, (width - scaleWidth) * xPaddingRatio)
+            minTx = min(0f, width - scaleWidth)
+        }
+
+        val maxTy: Float
+        val minTy: Float
+        if (panLimit == PAN_LIMIT_CENTER && isReady) {
+            maxTy = max(0f, (height / 2).toFloat())
+            minTy = height / 2 - scaleHeight
+        } else {
+            maxTy = max(0f, (height - scaleHeight) * yPaddingRatio)
+            minTy = min(0f, height - scaleHeight)
+        }
+
+        val atLeft = translate.x >= maxTx - 1f
+        val atRight = translate.x <= minTx + 1f
+        val atTop = translate.y >= maxTy - 1f
+        val atBottom = translate.y <= minTy + 1f
+
+        notifyEdgeReached(atLeft, atTop, atRight, atBottom)
     }
 
     /**
      * Once source image and view dimensions are known, creates a map of sample size to tile grid.
-     */
-    /**
      * Async task used to get image details without blocking the UI thread.
-     */
-    /**
      * Called by worker task when decoder is ready and image size and EXIF orientation is known.
      */
     @Synchronized
@@ -2305,6 +2464,8 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                 (width - hPadding) / sWidth().toFloat(),
                 (height - vPadding) / sHeight().toFloat()
             )
+
+            SCALE_TYPE_FIT_WIDTH -> (width - hPadding) / sWidth().toFloat()
 
             SCALE_TYPE_CUSTOM if minScale > 0 -> minScale
             else -> min(
@@ -3004,11 +3165,15 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         /** Scale the image so that both dimensions of the image will be equal to or larger than the corresponding dimension of the view. The top left is shown. */
         const val SCALE_TYPE_START = 4
 
+        /** Scale the image so that the width of the image will be equal to the width of the view. */
+        const val SCALE_TYPE_FIT_WIDTH = 5
+
         private val VALID_SCALE_TYPES = listOf(
             SCALE_TYPE_CENTER_CROP,
             SCALE_TYPE_CENTER_INSIDE,
             SCALE_TYPE_CUSTOM,
-            SCALE_TYPE_START
+            SCALE_TYPE_START,
+            SCALE_TYPE_FIT_WIDTH
         )
 
         /** State change originated from animation. */
