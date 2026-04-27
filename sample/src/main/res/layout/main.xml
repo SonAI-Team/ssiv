@@ -45,8 +45,8 @@
                     android:orientation="vertical">
 
                     <TextView
-                        style="@style/indexLink"
                         android:id="@+id/basicFeatures"
+                        style="@style/indexLink"
                         android:drawablePadding="16dp"
                         android:text="@string/basic.link"
                         app:drawableStartCompat="@android:drawable/ic_menu_edit"
@@ -55,8 +55,8 @@
                     <View style="@style/indexDivider" />
 
                     <TextView
-                        style="@style/indexLink"
                         android:id="@+id/imageDisplay"
+                        style="@style/indexLink"
                         android:drawablePadding="16dp"
                         android:text="@string/display.link"
                         app:drawableStartCompat="@android:drawable/ic_menu_gallery"
@@ -65,8 +65,8 @@
                     <View style="@style/indexDivider" />
 
                     <TextView
-                        style="@style/indexLink"
                         android:id="@+id/eventHandling"
+                        style="@style/indexLink"
                         android:drawablePadding="16dp"
                         android:text="@string/event.link"
                         app:drawableStartCompat="@android:drawable/ic_menu_view"
@@ -75,8 +75,8 @@
                     <View style="@style/indexDivider" />
 
                     <TextView
-                        style="@style/indexLink"
                         android:id="@+id/advancedEventHandling"
+                        style="@style/indexLink"
                         android:drawablePadding="16dp"
                         android:text="@string/advancedevent.link"
                         app:drawableStartCompat="@android:drawable/ic_menu_manage"
@@ -85,8 +85,8 @@
                     <View style="@style/indexDivider" />
 
                     <TextView
-                        style="@style/indexLink"
                         android:id="@+id/viewPagerGalleries"
+                        style="@style/indexLink"
                         android:drawablePadding="16dp"
                         android:text="@string/pager.link"
                         app:drawableStartCompat="@android:drawable/ic_menu_slideshow"

@@ -1,7 +1,5 @@
 package com.sonai.ssiv
 
-import java.lang.Exception
-
 /**
  * An event listener, allowing subclasses and activities to be notified of significant events.
  */

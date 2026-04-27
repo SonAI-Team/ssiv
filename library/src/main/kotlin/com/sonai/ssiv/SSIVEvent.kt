@@ -1,7 +1,6 @@
 package com.sonai.ssiv
 
 import android.graphics.PointF
-import java.lang.Exception
 
 sealed class SSIVEvent {
     data object OnReady : SSIVEvent()

@@ -4,9 +4,12 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.net.toUri
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.sonai.ssiv.test.R.id
 import com.sonai.ssiv.test.animation.AnimationActivity
 import com.sonai.ssiv.test.basicfeatures.BasicFeaturesActivity
@@ -14,9 +17,6 @@ import com.sonai.ssiv.test.configuration.ConfigurationActivity
 import com.sonai.ssiv.test.eventhandling.EventHandlingActivity
 import com.sonai.ssiv.test.eventhandlingadvanced.AdvancedEventHandlingActivity
 import com.sonai.ssiv.test.extension.ExtensionActivity
-import androidx.activity.enableEdgeToEdge
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import com.sonai.ssiv.test.imagedisplay.ImageDisplayActivity
 import com.sonai.ssiv.test.viewpager.ViewPagerActivity
 

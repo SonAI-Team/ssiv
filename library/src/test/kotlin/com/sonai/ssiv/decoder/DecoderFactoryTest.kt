@@ -9,7 +9,7 @@ class DecoderFactoryTest {
     fun `test lambda factory`() {
         val expected = "decoder"
         val factory = DecoderFactory { expected }
-        
+
         assertEquals(expected, factory.make())
     }
 }

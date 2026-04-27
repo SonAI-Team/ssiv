@@ -3,10 +3,10 @@ package com.sonai.ssiv
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.net.Uri
+import androidx.core.net.toUri
 import java.io.File
 import java.io.UnsupportedEncodingException
 import java.net.URLDecoder
-import androidx.core.net.toUri
 
 /**
  * Helper class used to set the source and additional attributes from a variety of sources. Supports
