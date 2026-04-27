@@ -45,6 +45,10 @@ class SkiaSSIVImageDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null
                     decoder.allocator = ImageDecoder.ALLOCATOR_HARDWARE
                 }
                 decoder.isMutableRequired = false
+                // Allow high bit depth (16-bit float) or wide gamut (P3) content
+                if (preferredConfig == Bitmap.Config.HARDWARE || preferredConfig == Bitmap.Config.RGBA_F16) {
+                    decoder.setTargetColorSpace(android.graphics.ColorSpace.get(android.graphics.ColorSpace.Named.EXTENDED_SRGB))
+                }
             }
         } catch (e: IOException) {
             throw IllegalStateException("ImageDecoder failed to decode bitmap", e)
@@ -59,6 +63,10 @@ class SkiaSSIVImageDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null
                     decoder.allocator = ImageDecoder.ALLOCATOR_HARDWARE
                 }
                 decoder.isMutableRequired = false
+                // Allow high bit depth (16-bit float) or wide gamut (P3) content
+                if (preferredConfig == Bitmap.Config.HARDWARE || preferredConfig == Bitmap.Config.RGBA_F16) {
+                    decoder.setTargetColorSpace(android.graphics.ColorSpace.get(android.graphics.ColorSpace.Named.EXTENDED_SRGB))
+                }
             }
         } catch (e: IOException) {
             throw IllegalStateException("ImageDecoder failed to decode bitmap from ByteBuffer", e)

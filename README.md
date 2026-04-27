@@ -33,6 +33,22 @@ SSIV uses a two-tier loading strategy to display massive images:
 * **Easy Integration:** Built for `ViewPager` galleries, supports state restoration, and easy to
   extend.
 
+## Supported Formats
+
+SSIV is optimized for **pixel-based (raster) images**. It leverages the system's `ImageDecoder` (SDK 28+) and `BitmapRegionDecoder` to provide high-performance rendering of:
+
+*   **Standard**: JPEG, PNG, BMP, WBMP, ICO.
+*   **Web-Optimized**: WebP (Lossy, Lossless, and Transparent).
+*   **High-Efficiency (SDK 30+)**: Full support for **HEIF** and **HEIC** containers.
+*   **Modern & HDR (SDK 34+)**: Native support for **AVIF**, **DCI-P3**, **16-bit (F16)** color depth, and **Ultra HDR** (Gainmaps) with automatic window color mode switching.
+*   **Pro Photography**: **RAW** images (DNG) are supported via the single-image decoder path.
+
+> [!IMPORTANT]
+> **Summary**: This library is designed for **static raster images**. It does **not** support vector
+> graphics (SVG), video files, or animated formats (GIF/Animated WebP - only the first frame is shown).
+> 
+> **For extremely large, static pixel-based content, SSIV is the industry-standard approach.**
+
 ## Contributing
 
 Contributions are welcome! Whether you're fixing a bug, suggesting a feature, or improving

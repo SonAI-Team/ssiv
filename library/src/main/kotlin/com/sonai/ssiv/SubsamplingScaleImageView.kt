@@ -1,8 +1,9 @@
 package com.sonai.ssiv
 
-import java.nio.ByteBuffer
 import android.content.ContentResolver
+import java.nio.ByteBuffer
 import android.content.Context
+import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -666,7 +667,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                     null
                 }
             }
-            handleTilesInitResult(decoder, result, exception)
+            handleTilesInitResult(decoder, result, exception, context, source, null)
         }
     }
 
@@ -692,7 +693,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                     null
                 }
             }
-            handleTilesInitResult(decoder, result, exception)
+            handleTilesInitResult(decoder, result, exception, context, null, buffer)
         }
     }
 
@@ -710,12 +711,27 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         return intArrayOf(sWidth, sHeight, exifOrientation)
     }
 
-    private fun handleTilesInitResult(decoder: ImageRegionDecoder?, result: IntArray?, exception: Exception?) {
+    private fun handleTilesInitResult(
+        decoder: ImageRegionDecoder?,
+        result: IntArray?,
+        exception: Exception?,
+        context: Context,
+        source: Uri?,
+        buffer: ByteBuffer?
+    ) {
         if (decoder != null && result != null && result.size == INIT_RESULT_COUNT) {
             onTilesInited(decoder, result[0], result[1], result[2])
         } else if (exception != null) {
-            onImageEventListener?.onImageLoadError(exception)
-            onImageEventListeners.forEach { it.onImageLoadError(exception) }
+            // Fallback to single bitmap loading if tiling fails (common for RAW/DNG formats)
+            debug("Tiling init failed, falling back to single bitmap load: ${exception.message}")
+            if (buffer != null) {
+                executeBitmapLoadTask(context, bitmapDecoderFactory, buffer, false)
+            } else if (source != null) {
+                executeBitmapLoadTask(context, bitmapDecoderFactory, source, false)
+            } else {
+                onImageEventListener?.onImageLoadError(exception)
+                onImageEventListeners.forEach { it.onImageLoadError(exception) }
+            }
         }
     }
 
@@ -2093,6 +2109,14 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     @Synchronized
     private fun onImageLoaded(bitmap: Bitmap, sOrientation: Int, bitmapIsCached: Boolean) {
         debug("onImageLoaded")
+        // Handle HDR and Wide Color Gamut (DCI-P3) support
+        (context as? android.app.Activity)?.window?.let { window ->
+            if (bitmap.hasGainmap()) {
+                window.colorMode = ActivityInfo.COLOR_MODE_HDR
+            } else if (bitmap.colorSpace?.isWideGamut == true) {
+                window.colorMode = ActivityInfo.COLOR_MODE_WIDE_COLOR_GAMUT
+            }
+        }
         // If actual dimensions don't match the declared size, reset everything.
         if (this.sWidth > 0 && this.sHeight > 0 && (this.sWidth != bitmap.width || this.sHeight != bitmap.height)) {
             reset(false)
