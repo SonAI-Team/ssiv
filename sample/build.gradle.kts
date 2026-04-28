@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.compose.compiler)
 }
 
 android {
@@ -8,12 +9,16 @@ android {
 
     defaultConfig {
         applicationId = "com.sonai.ssiv.test"
-        minSdk = 21
+        minSdk = 23
         targetSdk = 37
         versionCode = 3
         versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildFeatures {
+        compose = true
     }
 
     buildTypes {
@@ -46,6 +51,19 @@ android {
 
 dependencies {
     implementation(project(":library"))
+    implementation(project(":library-compose"))
+    implementation(project(":library-coil"))
+    
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.compose.material.icons.core)
+    
+    debugImplementation(libs.leakcanary.android)
+
     implementation(libs.androidx.annotation)
     implementation(libs.androidx.fragment)
     implementation(libs.androidx.appcompat)

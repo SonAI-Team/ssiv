@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.detekt)
     alias(libs.plugins.maven.publish) apply false
     alias(libs.plugins.dokka) apply false
+    kotlin("jvm")
 }
 
 detekt {
@@ -24,4 +25,10 @@ subprojects {
     tasks.withType<Detekt>().configureEach {
         jvmTarget = "21"
     }
+}
+dependencies {
+    implementation(kotlin("stdlib-jdk8"))
+}
+kotlin {
+    jvmToolchain(8)
 }

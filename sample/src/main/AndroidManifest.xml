@@ -8,14 +8,14 @@
         android:label="@string/app.name"
         android:theme="@style/sampleTheme"
         tools:ignore="GoogleAppIndexingWarning">
-        <activity
-            android:name=".MainActivity"
+        <activity android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name=".ComposeSampleActivity" />
         <activity android:name=".basicfeatures.BasicFeaturesActivity" />
         <activity android:name=".imagedisplay.ImageDisplayActivity" />
         <activity android:name=".eventhandling.EventHandlingActivity" />

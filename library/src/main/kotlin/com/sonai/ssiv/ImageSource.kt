@@ -110,6 +110,7 @@ class ImageSource {
         fun uri(uri: Uri): ImageSource = ImageSource(uri)
 
         @JvmStatic
+        @Suppress("unused")
         fun buffer(buffer: ByteBuffer): ImageSource = ImageSource(buffer)
 
         @JvmStatic
@@ -151,5 +152,35 @@ class ImageSource {
             this.sWidth = it.width()
             this.sHeight = it.height()
         }
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is ImageSource) return false
+
+        if (uri != other.uri) return false
+        if (bitmap != other.bitmap) return false
+        if (buffer != other.buffer) return false
+        if (resource != other.resource) return false
+        if (tile != other.tile) return false
+        if (sWidth != other.sWidth) return false
+        if (sHeight != other.sHeight) return false
+        if (sRegion != other.sRegion) return false
+        if (isCached != other.isCached) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = uri?.hashCode() ?: 0
+        result = 31 * result + (bitmap?.hashCode() ?: 0)
+        result = 31 * result + (buffer?.hashCode() ?: 0)
+        result = 31 * result + (resource ?: 0)
+        result = 31 * result + tile.hashCode()
+        result = 31 * result + sWidth
+        result = 31 * result + sHeight
+        result = 31 * result + (sRegion?.hashCode() ?: 0)
+        result = 31 * result + isCached.hashCode()
+        return result
     }
 }
