@@ -14,7 +14,7 @@ tasks.withType<Detekt>().configureEach {
 }
 
 group = "io.github.sonai-team"
-version = "1.0.2"
+version = "1.1.0"
 
 mavenPublishing {
     signAllPublications()

@@ -24,6 +24,8 @@ SSIV uses a two-tier loading strategy to display massive images:
 ## Features
 
 * **Tiling & Subsampling:** Load massive images that exceed standard memory limits.
+* **Jetpack Compose Support:** Native `SubsamplingImage` Composable for idiomatic integration.
+* **Coil Integration:** Seamlessly use Coil's disk cache and loading pipeline for your images.
 * **Modern Stack:** 100% Kotlin, Coroutines for async loading, and AndroidX support (**minSdk 23**).
 * **Gestures:** Fluid one-finger panning, precise two-finger pinch-to-zoom, quick scale, and fling
   momentum.
@@ -31,6 +33,23 @@ SSIV uses a two-tier loading strategy to display massive images:
   easing.
 * **Easy Integration:** Built for `ViewPager` galleries, supports state restoration, and easy to
   extend.
+
+## Installation
+
+Add the dependency to your `build.gradle` file:
+
+```kotlin
+dependencies {
+    // Core library
+    implementation("io.github.sonai-team:ssiv:1.1.0")
+
+    // Jetpack Compose support (optional)
+    implementation("io.github.sonai-team:ssiv-compose:1.1.0")
+
+    // Coil integration (optional)
+    implementation("io.github.sonai-team:ssiv-coil:1.1.0")
+}
+```
 
 ## SDK Support Matrix
 
