@@ -1,6 +1,7 @@
 package com.sonai.ssiv
 
 import android.content.ContentResolver
+import android.os.Build
 import java.nio.ByteBuffer
 import android.content.Context
 import android.content.pm.ActivityInfo
@@ -31,6 +32,7 @@ import com.sonai.ssiv.SubsamplingScaleImageView.Companion.ORIENTATION_USE_EXIF
 import com.sonai.ssiv.SubsamplingScaleImageView.Companion.PAN_LIMIT_INSIDE
 import com.sonai.ssiv.SubsamplingScaleImageView.Companion.SCALE_TYPE_CENTER_INSIDE
 import com.sonai.ssiv.SubsamplingScaleImageView.Companion.TILE_SIZE_AUTO
+import com.sonai.ssiv.decoder.BitmapFactorySSIVImageDecoder
 import com.sonai.ssiv.decoder.DecoderFactory
 import com.sonai.ssiv.decoder.ImageRegionDecoder
 import com.sonai.ssiv.decoder.SSIVImageDecoder
@@ -191,7 +193,13 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     private var decoder: ImageRegionDecoder? = null
     private val decoderLock: ReadWriteLock = ReentrantReadWriteLock(true)
     private var bitmapDecoderFactory: DecoderFactory<out SSIVImageDecoder> =
-        DecoderFactory { SkiaSSIVImageDecoder() }
+        DecoderFactory {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                SkiaSSIVImageDecoder()
+            } else {
+                BitmapFactorySSIVImageDecoder()
+            }
+        }
     private var regionDecoderFactory: DecoderFactory<out ImageRegionDecoder> =
         DecoderFactory { SkiaImageRegionDecoder() }
 
@@ -2110,12 +2118,8 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     private fun onImageLoaded(bitmap: Bitmap, sOrientation: Int, bitmapIsCached: Boolean) {
         debug("onImageLoaded")
         // Handle HDR and Wide Color Gamut (DCI-P3) support
-        (context as? android.app.Activity)?.window?.let { window ->
-            if (bitmap.hasGainmap()) {
-                window.colorMode = ActivityInfo.COLOR_MODE_HDR
-            } else if (bitmap.colorSpace?.isWideGamut == true) {
-                window.colorMode = ActivityInfo.COLOR_MODE_WIDE_COLOR_GAMUT
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            setupColorMode(bitmap)
         }
         // If actual dimensions don't match the declared size, reset everything.
         if (this.sWidth > 0 && this.sHeight > 0 && (this.sWidth != bitmap.width || this.sHeight != bitmap.height)) {
@@ -2780,6 +2784,21 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
      */
     protected open fun onImageLoaded() {}
 
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.O)
+    private fun setupColorMode(bitmap: Bitmap) {
+        val activity = context as? android.app.Activity ?: return
+        val window = activity.window
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            if (bitmap.hasGainmap()) {
+                window.colorMode = ActivityInfo.COLOR_MODE_HDR
+                return
+            }
+        }
+        if (bitmap.colorSpace?.isWideGamut == true) {
+            window.colorMode = ActivityInfo.COLOR_MODE_WIDE_COLOR_GAMUT
+        }
+    }
+
     /**
      * Get source width, ignoring orientation. If [getOrientation] returns 90 or 270, you can use [getSHeight]
      * for the apparent width.
@@ -3253,7 +3272,15 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         private const val MATRIX_ARRAY_SIZE = 8
         private const val DEBUG_LINE_WIDTH_PX = 1
 
-        private var preferredBitmapConfig: Bitmap.Config? = Bitmap.Config.HARDWARE
+        private var preferredBitmapConfig: Bitmap.Config? = defaultBitmapConfig()
+
+        private fun defaultBitmapConfig(): Bitmap.Config {
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Bitmap.Config.HARDWARE
+            } else {
+                Bitmap.Config.ARGB_8888
+            }
+        }
 
         /**
          * Get the current preferred configuration for decoding bitmaps. [SSIVImageDecoder] and [ImageRegionDecoder]

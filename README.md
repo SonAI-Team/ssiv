@@ -10,8 +10,7 @@ with minimal memory overhead.
 
 ## Documentation
 
-For detailed guides, examples, and API references, please visit our *
-*[Wiki](https://github.com/SonAI-Team/ssiv/wiki)**.
+For detailed guides, examples, and API references, please visit our **[Wiki](https://github.com/SonAI-Team/ssiv/wiki)**.
 
 ## How it Works
 
@@ -25,7 +24,7 @@ SSIV uses a two-tier loading strategy to display massive images:
 ## Features
 
 * **Tiling & Subsampling:** Load massive images that exceed standard memory limits.
-* **Modern Stack:** 100% Kotlin, Coroutines for async loading, and AndroidX support.
+* **Modern Stack:** 100% Kotlin, Coroutines for async loading, and AndroidX support (**minSdk 21**).
 * **Gestures:** Fluid one-finger panning, precise two-finger pinch-to-zoom, quick scale, and fling
   momentum.
 * **Animation:** Built-in methods for animating scale and focal point with adjustable duration and
@@ -33,21 +32,34 @@ SSIV uses a two-tier loading strategy to display massive images:
 * **Easy Integration:** Built for `ViewPager` galleries, supports state restoration, and easy to
   extend.
 
+## SDK Support Matrix
+
+The library automatically adapts its decoding engine and features based on the device's Android version:
+
+| Feature / Format | SDK 21+ (5.0) | SDK 26+ (8.0) | SDK 28+ (9.0) | SDK 31+ (12) | SDK 34+ (14) |
+|:---|:---:|:---:|:---:|:---:|:---:|
+| **Core Tiling & Zoom** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **JPEG, PNG, WebP** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Hardware Bitmaps** | ❌ | ✅ | ✅ | ✅ | ✅ |
+| **Wide Gamut (P3)** | ❌ | ✅ | ✅ | ✅ | ✅ |
+| **ImageDecoder API** | ❌ | ❌ | ✅ | ✅ | ✅ |
+| **AVIF Support** | ❌ | ❌ | ❌ | ✅ | ✅ |
+| **Ultra HDR (Gainmaps)**| ❌ | ❌ | ❌ | ❌ | ✅ |
+
 ## Supported Formats
 
-SSIV is optimized for **pixel-based (raster) images**. It leverages the system's `ImageDecoder` (SDK 28+) and `BitmapRegionDecoder` to provide high-performance rendering of:
+SSIV is optimized for **pixel-based (raster) images**. It dynamically chooses between `ImageDecoder` (SDK 28+) and `BitmapFactory` to ensure maximum compatibility:
 
-*   **Standard**: JPEG, PNG, BMP, WBMP, ICO.
-*   **Web-Optimized**: WebP (Lossy, Lossless, and Transparent).
+*   **Standard (SDK 21+)**: JPEG, PNG, BMP, WBMP, ICO.
+*   **Web-Optimized (SDK 21+)**: WebP (Lossy, Lossless, and Transparent).
 *   **High-Efficiency (SDK 30+)**: Full support for **HEIF** and **HEIC** containers.
-*   **Modern & HDR (SDK 34+)**: Native support for **AVIF**, **DCI-P3**, **16-bit (F16)** color depth, and **Ultra HDR** (Gainmaps) with automatic window color mode switching.
-*   **Pro Photography**: **RAW** images (DNG) are supported via the single-image decoder path.
+*   **Next-Gen AVIF (SDK 31+)**: Native support for high-compression **AVIF** files.
+*   **Pro & HDR (SDK 34+)**: Support for **Ultra HDR** (Gainmaps), **DCI-P3**, and **16-bit (F16)** color depth with automatic window color mode switching.
+*   **Photography**: **RAW** images (DNG) are supported via the single-image decoder path.
 
 > [!IMPORTANT]
 > **Summary**: This library is designed for **static raster images**. It does **not** support vector
 > graphics (SVG), video files, or animated formats (GIF/Animated WebP - only the first frame is shown).
-> 
-> **For extremely large, static pixel-based content, SSIV is the industry-standard approach.**
 
 ## Contributing
 

@@ -8,7 +8,7 @@ android {
 
     defaultConfig {
         applicationId = "com.sonai.ssiv.test"
-        minSdk = 34
+        minSdk = 21
         targetSdk = 37
         versionCode = 3
         versionName = "1.0.2"

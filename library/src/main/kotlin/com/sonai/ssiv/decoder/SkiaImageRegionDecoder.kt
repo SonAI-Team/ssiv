@@ -36,29 +36,49 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
 
     private var bitmapConfig: Bitmap.Config = bitmapConfig
         ?: SubsamplingScaleImageView.getPreferredBitmapConfig()
-        ?: Bitmap.Config.HARDWARE
+        ?: defaultBitmapConfig()
 
+    private fun defaultBitmapConfig(): Bitmap.Config {
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            Bitmap.Config.HARDWARE
+        } else {
+            Bitmap.Config.ARGB_8888
+        }
+    }
+
+    @Suppress("DEPRECATION")
     override fun init(context: Context, uri: Uri): Point {
         val uriString = uri.toString()
         val newDecoder = when {
             uriString.startsWith(RESOURCE_PREFIX) -> {
                 val id = uri.pathSegments.firstOrNull { it.isDigitsOnly() }?.toIntOrNull() ?: 0
-                BitmapRegionDecoder.newInstance(context.resources.openRawResource(id))
+                context.resources.openRawResource(id).use {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                        BitmapRegionDecoder.newInstance(it)
+                    } else {
+                        BitmapRegionDecoder.newInstance(it, false)
+                    }
+                }
             }
 
             uriString.startsWith(ASSET_PREFIX) -> {
                 val assetName = uriString.substring(ASSET_PREFIX.length)
-                BitmapRegionDecoder.newInstance(
-                    context.assets.open(
-                        assetName,
-                        AssetManager.ACCESS_RANDOM
-                    )
-                )
+                context.assets.open(assetName, AssetManager.ACCESS_RANDOM).use {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                        BitmapRegionDecoder.newInstance(it)
+                    } else {
+                        BitmapRegionDecoder.newInstance(it, false)
+                    }
+                }
             }
 
             else -> {
                 context.contentResolver.openInputStream(uri)?.use {
-                    BitmapRegionDecoder.newInstance(it)
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                        BitmapRegionDecoder.newInstance(it)
+                    } else {
+                        BitmapRegionDecoder.newInstance(it, false)
+                    }
                 } ?: throw IllegalArgumentException(
                     "Content resolver returned null stream. Unable to initialise with uri."
                 )
@@ -68,6 +88,7 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
         return Point(newDecoder!!.width, newDecoder.height)
     }
 
+    @Suppress("DEPRECATION")
     override fun init(context: Context, buffer: ByteBuffer): Point {
         val stream = object : java.io.InputStream() {
             override fun read(): Int {
@@ -81,8 +102,11 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
                 return count
             }
         }
-        val newDecoder = BitmapRegionDecoder.newInstance(stream)
-            ?: throw IllegalArgumentException("Unable to initialise with ByteBuffer")
+        val newDecoder = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            BitmapRegionDecoder.newInstance(stream)
+        } else {
+            BitmapRegionDecoder.newInstance(stream, false)
+        } ?: throw IllegalArgumentException("Unable to initialise with ByteBuffer")
         decoder = newDecoder
         return Point(newDecoder.width, newDecoder.height)
     }

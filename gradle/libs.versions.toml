@@ -17,7 +17,8 @@ mockk = "1.14.9"
 robolectric = "4.16.1"
 robolectric-extension = "0.9.0"
 recyclerview = "1.4.0"
-
+maven-publish = "0.36.0"
+dokka = "2.2.0"
 
 [libraries]
 androidx-annotation = { group = "androidx.annotation", name = "annotation", version.ref = "annotation" }
@@ -45,3 +46,5 @@ material = { group = "com.google.android.material", name = "material", version.r
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "maven-publish" }
+dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }

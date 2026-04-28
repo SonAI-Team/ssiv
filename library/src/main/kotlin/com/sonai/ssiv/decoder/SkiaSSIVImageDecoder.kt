@@ -3,9 +3,12 @@ package com.sonai.ssiv.decoder
 import android.content.ContentResolver
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.ColorSpace
 import android.graphics.ImageDecoder
 import android.net.Uri
+import android.os.Build
 import androidx.annotation.Keep
+import androidx.annotation.RequiresApi
 import androidx.core.text.isDigitsOnly
 import com.sonai.ssiv.SubsamplingScaleImageView
 import java.io.IOException
@@ -16,11 +19,16 @@ import java.nio.ByteBuffer
  * using Android's [ImageDecoder]. This provides high performance and supports
  * modern image formats and hardware acceleration.
  */
+@RequiresApi(Build.VERSION_CODES.P)
 class SkiaSSIVImageDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null) :
     SSIVImageDecoder {
     private val preferredConfig: Bitmap.Config = bitmapConfig
         ?: SubsamplingScaleImageView.getPreferredBitmapConfig()
-        ?: Bitmap.Config.HARDWARE
+        ?: defaultBitmapConfig()
+
+    private fun defaultBitmapConfig(): Bitmap.Config {
+        return Bitmap.Config.HARDWARE
+    }
 
     override fun decode(context: Context, uri: Uri): Bitmap {
         val source = when {
@@ -47,7 +55,7 @@ class SkiaSSIVImageDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null
                 decoder.isMutableRequired = false
                 // Allow high bit depth (16-bit float) or wide gamut (P3) content
                 if (preferredConfig == Bitmap.Config.HARDWARE || preferredConfig == Bitmap.Config.RGBA_F16) {
-                    decoder.setTargetColorSpace(android.graphics.ColorSpace.get(android.graphics.ColorSpace.Named.EXTENDED_SRGB))
+                    decoder.setTargetColorSpace(ColorSpace.get(ColorSpace.Named.EXTENDED_SRGB))
                 }
             }
         } catch (e: IOException) {
@@ -65,7 +73,7 @@ class SkiaSSIVImageDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null
                 decoder.isMutableRequired = false
                 // Allow high bit depth (16-bit float) or wide gamut (P3) content
                 if (preferredConfig == Bitmap.Config.HARDWARE || preferredConfig == Bitmap.Config.RGBA_F16) {
-                    decoder.setTargetColorSpace(android.graphics.ColorSpace.get(android.graphics.ColorSpace.Named.EXTENDED_SRGB))
+                    decoder.setTargetColorSpace(ColorSpace.get(ColorSpace.Named.EXTENDED_SRGB))
                 }
             }
         } catch (e: IOException) {

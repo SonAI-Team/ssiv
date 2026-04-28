@@ -17,6 +17,7 @@ captures/
 
 # Misc
 .DS_Store
+secring.gpg
 
 # Wiki
 /docs/wiki
