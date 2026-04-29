@@ -62,6 +62,11 @@ class AnimationBuilder {
         return this
     }
 
+    fun withInterpolator(interpolator: android.view.animation.Interpolator?): AnimationBuilder {
+        // Not supported in new version, but added for compatibility
+        return this
+    }
+
     fun withOnAnimationEventListener(listener: OnAnimationEventListener?): AnimationBuilder {
         this.listener = listener
         return this

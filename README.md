@@ -41,13 +41,13 @@ Add the dependency to your `build.gradle` file:
 ```kotlin
 dependencies {
     // Core library
-    implementation("io.github.sonai-team:ssiv:1.1.0")
+    implementation("io.github.sonai-team:ssiv:1.1.1")
 
     // Jetpack Compose support (optional)
-    implementation("io.github.sonai-team:ssiv-compose:1.1.0")
+    implementation("io.github.sonai-team:ssiv-compose:1.1.1")
 
     // Coil integration (optional)
-    implementation("io.github.sonai-team:ssiv-coil:1.1.0")
+    implementation("io.github.sonai-team:ssiv-coil:1.1.1")
 }
 ```
 

@@ -22,13 +22,13 @@ fun SubsamplingImage(
     zoomEnabled: Boolean = true,
     quickScaleEnabled: Boolean = true,
     onImageLoaded: (() -> Unit)? = null,
-    onImageError: ((Exception) -> Unit)? = null,
+    onImageError: ((Throwable) -> Unit)? = null,
 ) {
     AndroidView(
         factory = { context ->
             SubsamplingScaleImageView(context).apply {
-                this.setMinScale(minScale)
-                this.setMaxScale(maxScale)
+                this.minScale = minScale
+                this.maxScale = maxScale
                 this.setPanEnabled(panEnabled)
                 this.setZoomEnabled(zoomEnabled)
                 this.setQuickScaleEnabled(quickScaleEnabled)
@@ -48,23 +48,23 @@ fun SubsamplingImage(
         },
         modifier = modifier,
         update = { view ->
-            view.setOnImageEventListener(object : OnImageEventListener {
+            view.onImageEventListener = object : OnImageEventListener {
                 override fun onImageLoaded() {
                     onImageLoaded?.invoke()
                 }
 
-                override fun onImageLoadError(e: Exception) {
+                override fun onImageLoadError(e: Throwable) {
                     onImageError?.invoke(e)
                 }
 
-                override fun onPreviewLoadError(e: Exception) {
+                override fun onPreviewLoadError(e: Throwable) {
                     onImageError?.invoke(e)
                 }
 
-                override fun onTileLoadError(e: Exception) {
+                override fun onTileLoadError(e: Throwable) {
                     onImageError?.invoke(e)
                 }
-            })
+            }
 
             // Update ImageSource only if changed
             if (view.tag != imageSource) {
@@ -72,15 +72,15 @@ fun SubsamplingImage(
                 view.tag = imageSource
             }
 
-            view.setMinScale(minScale)
-            view.setMaxScale(maxScale)
+            view.minScale = minScale
+            view.maxScale = maxScale
             view.setPanEnabled(panEnabled)
             view.setZoomEnabled(zoomEnabled)
             view.setQuickScaleEnabled(quickScaleEnabled)
             
             // Sync scale and center only if they differ significantly from view's current values
             // to avoid cancelling animations or gestures prematurely.
-            val currentScale = view.getScale()
+            val currentScale = view.scale
             val targetScale = state.scale
             if (targetScale != null && abs(currentScale - targetScale) > 0.001f) {
                 view.setScaleAndCenter(targetScale, state.center)

@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "io.github.sonai-team"
-version = "1.1.0"
+version = "1.1.1"
 
 mavenPublishing {
     signAllPublications()

@@ -61,6 +61,7 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Displays an image subsampled as necessary to avoid loading too much image data into memory. After zooming in,
@@ -118,22 +119,45 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     private var debug = false
 
     // Image orientation setting
-    private var orientation = ORIENTATION_0
+    var orientation = ORIENTATION_0
+        set(value) {
+            require(VALID_ORIENTATIONS.contains(value)) { "Invalid orientation: $value" }
+            field = value
+            reset(false)
+            invalidate()
+            requestLayout()
+        }
 
     // Max scale allowed (prevent infinite zoom)
-    private var maxScale = 2f
+    var maxScale = 2f
 
     // Min scale allowed (prevent infinite zoom)
-    private var minScale = minScale()
+    var minScale = minScale()
 
     // Density to reach before loading higher resolution tiles
     private var minimumTileDpi = -1
 
     // Pan limiting style
-    private var panLimit = PAN_LIMIT_INSIDE
+    var panLimit = PAN_LIMIT_INSIDE
+        set(value) {
+            require(VALID_PAN_LIMITS.contains(value)) { "Invalid pan limit: $value" }
+            field = value
+            if (isReady) {
+                fitToBounds(true)
+                invalidate()
+            }
+        }
 
     // Minimum scale type
-    private var minimumScaleType = SCALE_TYPE_CENTER_INSIDE
+    var minimumScaleType = SCALE_TYPE_CENTER_INSIDE
+        set(value) {
+            require(VALID_SCALE_TYPES.contains(value)) { "Invalid scale type: $value" }
+            field = value
+            if (isReady) {
+                fitToBounds(true)
+                invalidate()
+            }
+        }
 
     // overrides for the dimensions of the generated tiles
     private var maxTileWidth = TILE_SIZE_AUTO
@@ -153,7 +177,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     private var doubleTapZoomDuration = DEFAULT_ANIM_DURATION
 
     // Current scale and scale at start of zoom
-    internal var scale = 0f
+    var scale = 0f
     private var scaleStart = 0f
 
     // Screen coordinate of top-left corner of source image
@@ -167,9 +191,9 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     private var sRequestedCenter: PointF? = null
 
     // Source image dimensions and orientation - dimensions relate to the unrotated image
-    private var sWidth = 0
-    private var sHeight = 0
-    private var sOrientation = 0
+    var sWidth = 0
+    var sHeight = 0
+    var sOrientation = 0
     private var sRegion: Rect? = null
     private var pRegion: Rect? = null
 
@@ -192,7 +216,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     // Tile and image decoding
     private var decoder: ImageRegionDecoder? = null
     private val decoderLock: ReadWriteLock = ReentrantReadWriteLock(true)
-    private var bitmapDecoderFactory: DecoderFactory<out SSIVImageDecoder> =
+    var bitmapDecoderFactory: DecoderFactory<out SSIVImageDecoder> =
         DecoderFactory {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 SkiaSSIVImageDecoder()
@@ -200,7 +224,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
                 BitmapFactorySSIVImageDecoder()
             }
         }
-    private var regionDecoderFactory: DecoderFactory<out ImageRegionDecoder> =
+    var regionDecoderFactory: DecoderFactory<out ImageRegionDecoder> =
         DecoderFactory { SkiaImageRegionDecoder() }
 
     // Debug values
@@ -225,7 +249,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     private var imageLoadedSent = false
 
     // Event listener
-    private var onImageEventListener: OnImageEventListener? = null
+    var onImageEventListener: OnImageEventListener? = null
     private val onImageEventListeners = CopyOnWriteArrayList<OnImageEventListener>()
 
     // Scale and center listener
@@ -339,17 +363,6 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         )
     }
 
-    /**
-     * Sets the image orientation. It's best to call this before setting the image file or asset, because it may waste
-     * loading of tiles. However, this can be freely called at any time.
-     * @param orientation orientation to be set. See ORIENTATION_ static fields for valid values.
-     */
-    fun setOrientation(orientation: Int) {
-        require(VALID_ORIENTATIONS.contains(orientation)) { "Invalid orientation: $orientation" }
-        this.orientation = orientation
-        reset(false)
-        invalidate()
-    }
 
     // Set a tile enhancer to use AI for upscaling tiles.
 
@@ -991,7 +1004,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
 
     private fun startLongClickTimer() {
         longClickJob = scope.launch {
-            delay(LONG_CLICK_DELAY)
+            delay(LONG_CLICK_DELAY.milliseconds)
             if (onLongClickListener != null) {
                 maxTouchCount = 0
                 super@SubsamplingScaleImageView.setOnLongClickListener(onLongClickListener)
@@ -1680,6 +1693,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             bitmapPaint!!.isAntiAlias = true
             bitmapPaint!!.isFilterBitmap = true
             bitmapPaint!!.isDither = true
+            bitmapPaint!!.colorFilter = colorFilter
         }
         if ((debugTextPaint == null || debugLinePaint == null) && debug) {
             debugTextPaint = Paint()
@@ -2263,7 +2277,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
      * After you have called this method, the view can be re-used by setting a new image. Settings are remembered
      * but state (scale and center) is forgotten. You can restore these yourself if required.
      */
-    fun recycle() {
+    open fun recycle() {
         reset(true)
         bitmapPaint = null
         debugTextPaint = null
@@ -2547,24 +2561,6 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         return (density * px).toInt()
     }
 
-    /**
-     * Swap the default region decoder implementation for one of your own. You must do this before setting the image file or
-     * asset, and you cannot use a custom decoder when using layout XML to set an asset name.
-     * @param regionDecoderFactory The [DecoderFactory] implementation that produces [ImageRegionDecoder]
-     * instances.
-     */
-    fun setRegionDecoderFactory(regionDecoderFactory: DecoderFactory<out ImageRegionDecoder>) {
-        this.regionDecoderFactory = regionDecoderFactory
-    }
-
-    /**
-     * Swap the default bitmap decoder implementation for one of your own. You must do this before setting the image file or
-     * asset, and you cannot use a custom decoder when using layout XML to set an asset name.
-     * @param bitmapDecoderFactory The [DecoderFactory] implementation that produces [SSIVImageDecoder] instances.
-     */
-    fun setBitmapDecoderFactory(bitmapDecoderFactory: DecoderFactory<out SSIVImageDecoder>) {
-        this.bitmapDecoderFactory = bitmapDecoderFactory
-    }
 
     /**
      * Calculate how much further the image can be panned in each direction. The results are set on
@@ -2604,50 +2600,6 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         }
     }
 
-    /**
-     * Set the pan limiting style. See static fields. Normally [PAN_LIMIT_INSIDE] is best, for image galleries.
-     * @param panLimit a pan limit constant. See static fields.
-     */
-    fun setPanLimit(panLimit: Int) {
-        require(VALID_PAN_LIMITS.contains(panLimit)) { "Invalid pan limit: $panLimit" }
-        this.panLimit = panLimit
-        if (isReady) {
-            fitToBounds(true)
-            invalidate()
-        }
-    }
-
-    /**
-     * Set the minimum scale type. See static fields. Normally [SCALE_TYPE_CENTER_INSIDE] is best, for image galleries.
-     * @param scaleType a scale type constant. See static fields.
-     */
-    fun setMinimumScaleType(scaleType: Int) {
-        require(VALID_SCALE_TYPES.contains(scaleType)) { "Invalid scale type: $scaleType" }
-        this.minimumScaleType = scaleType
-        if (isReady) {
-            fitToBounds(true)
-            invalidate()
-        }
-    }
-
-    /**
-     * Set the maximum scale allowed. A value of 1 means 1:1 pixels at maximum scale. You may wish to set this according
-     * to screen density - on a retina screen, 1:1 may still be too small. Consider using [setMinimumDpi],
-     * which is density aware.
-     * @param maxScale maximum scale expressed as a source/view pixels ratio.
-     */
-    fun setMaxScale(maxScale: Float) {
-        this.maxScale = maxScale
-    }
-
-    /**
-     * Set the minimum scale allowed. A value of 1 means 1:1 pixels at minimum scale. You may wish to set this according
-     * to screen density. Consider using [setMaximumDpi], which is density aware.
-     * @param minScale minimum scale expressed as a source/view pixels ratio.
-     */
-    fun setMinScale(minScale: Float) {
-        this.minScale = minScale
-    }
 
     /**
      * This is a screen density aware alternative to [setMaxScale]; it allows you to express the maximum
@@ -2658,7 +2610,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     fun setMinimumDpi(dpi: Int) {
         val metrics = resources.displayMetrics
         val averageDpi = (metrics.xdpi + metrics.ydpi) / 2
-        setMaxScale(averageDpi / dpi)
+        maxScale = averageDpi / dpi
     }
 
     /**
@@ -2669,25 +2621,9 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     fun setMaximumDpi(dpi: Int) {
         val metrics = resources.displayMetrics
         val averageDpi = (metrics.xdpi + metrics.ydpi) / 2
-        setMinScale(averageDpi / dpi)
+        minScale = averageDpi / dpi
     }
-
-    /**
-     * Returns the maximum allowed scale.
-     * @return the maximum scale as a source/view pixels ratio.
-     */
-    fun getMaxScale(): Float {
-        return maxScale
-    }
-
-    /**
-     * Returns the minimum allowed scale.
-     * @return the minimum scale as a source/view pixels ratio.
-     */
-    fun getMinScale(): Float {
-        return minScale()
-    }
-
+    
     /**
      * By default, image tiles are at least as high resolution as the screen. For a retina screen this may not be
      * necessary, and may increase the likelihood of an OutOfMemoryError. This method sets a DPI at which higher
@@ -2717,13 +2653,21 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
             return viewToSourceCoord(mX.toFloat(), mY.toFloat())
         }
 
+
     /**
-     * Returns the current scale value.
-     * @return the current scale as a source/view pixels ratio.
+     * Set a color filter to be applied to the image.
      */
-    fun getScale(): Float {
-        return scale
-    }
+    var colorFilter: android.graphics.ColorFilter? = null
+        set(value) {
+            field = value
+            bitmapPaint?.colorFilter = value
+            invalidate()
+        }
+
+    /**
+     * Enable or disable downsampling. Added for compatibility.
+     */
+    var downSampling: Boolean = false
 
     /**
      * Externally change the scale and translation of the source image. This may be used with getCenter() and getScale()
@@ -2799,32 +2743,6 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         }
     }
 
-    /**
-     * Get source width, ignoring orientation. If [getOrientation] returns 90 or 270, you can use [getSHeight]
-     * for the apparent width.
-     * @return the source image width in pixels.
-     */
-    fun getSWidth(): Int {
-        return sWidth
-    }
-
-    /**
-     * Get source height, ignoring orientation. If [getOrientation] returns 90 or 270, you can use [getSWidth]
-     * for the apparent height.
-     * @return the source image height in pixels.
-     */
-    fun getSHeight(): Int {
-        return sHeight
-    }
-
-    /**
-     * Returns the orientation setting. This can return [ORIENTATION_USE_EXIF], in which case it doesn't tell you
-     * the applied orientation of the image. For that, use [getAppliedOrientation].
-     * @return the orientation setting. See static fields.
-     */
-    fun getOrientation(): Int {
-        return orientation
-    }
 
     /**
      * Returns the actual orientation of the image relative to the source file. This will be based on the source file's
@@ -2843,7 +2761,7 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     val state: ImageViewState?
         get() {
             return if (vTranslate != null && sWidth > 0 && sHeight > 0) {
-                ImageViewState(getScale(), center!!, getOrientation())
+                ImageViewState(scale, center!!, orientation)
             } else null
         }
 
@@ -2993,14 +2911,6 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
      */
     override fun setOnLongClickListener(onLongClickListener: OnLongClickListener?) {
         this.onLongClickListener = onLongClickListener
-    }
-
-    /**
-     * Set a listener allowing notification of load and error events.
-     * @param onImageEventListener an [OnImageEventListener] instance.
-     */
-    fun setOnImageEventListener(onImageEventListener: OnImageEventListener?) {
-        this.onImageEventListener = onImageEventListener
     }
 
     /**

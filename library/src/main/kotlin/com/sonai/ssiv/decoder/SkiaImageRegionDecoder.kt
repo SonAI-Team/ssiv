@@ -158,6 +158,10 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
         return decoderLock.readLock()
     }
 
+    class Factory(private val bitmapConfig: Bitmap.Config? = null) : DecoderFactory<SkiaImageRegionDecoder> {
+        override fun make(): SkiaImageRegionDecoder = SkiaImageRegionDecoder(bitmapConfig)
+    }
+
     companion object {
         private const val FILE_PREFIX = "file://"
         private const val ASSET_PREFIX = "${FILE_PREFIX}/android_asset/"

@@ -31,21 +31,21 @@ class AnimationActivity : AbstractPagesActivity(
 
     override fun onPageChanged(page: Int) {
         if (page == 2) {
-            view.setPanLimit(SubsamplingScaleImageView.PAN_LIMIT_CENTER)
+            view.panLimit = SubsamplingScaleImageView.PAN_LIMIT_CENTER
         } else {
-            view.setPanLimit(SubsamplingScaleImageView.PAN_LIMIT_INSIDE)
+            view.panLimit = SubsamplingScaleImageView.PAN_LIMIT_INSIDE
         }
     }
 
     private fun play() {
         val random = Random()
         if (view.isReady) {
-            val maxScale = view.getMaxScale()
-            val minScale = view.getMinScale()
+            val maxScale = view.maxScale
+            val minScale = view.minScale
             val scale = (random.nextFloat() * (maxScale - minScale)) + minScale
             val center = PointF(
-                random.nextInt(view.getSWidth()).toFloat(),
-                random.nextInt(view.getSHeight()).toFloat()
+                random.nextInt(view.sWidth).toFloat(),
+                random.nextInt(view.sHeight).toFloat()
             )
             view.setPin(center)
             val animationBuilder = view.animateScaleAndCenter(scale, center)

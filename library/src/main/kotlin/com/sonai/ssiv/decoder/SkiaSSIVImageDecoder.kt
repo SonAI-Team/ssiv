@@ -19,6 +19,8 @@ import java.nio.ByteBuffer
  * using Android's [ImageDecoder]. This provides high performance and supports
  * modern image formats and hardware acceleration.
  */
+typealias SkiaImageDecoder = SkiaSSIVImageDecoder
+
 @RequiresApi(Build.VERSION_CODES.P)
 class SkiaSSIVImageDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null) :
     SSIVImageDecoder {
@@ -79,6 +81,10 @@ class SkiaSSIVImageDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null
         } catch (e: IOException) {
             throw IllegalStateException("ImageDecoder failed to decode bitmap from ByteBuffer", e)
         }
+    }
+
+    class Factory(private val bitmapConfig: Bitmap.Config? = null) : DecoderFactory<SkiaSSIVImageDecoder> {
+        override fun make(): SkiaSSIVImageDecoder = SkiaSSIVImageDecoder(bitmapConfig)
     }
 
     companion object {

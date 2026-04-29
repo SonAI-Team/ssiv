@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.1] - 2026-04-29
+
+### Fixed
+- **Backward Compatibility**: Restored access to previously public fields and methods in `SubsamplingScaleImageView` that were made private in 1.1.0.
+    - Fields like `sWidth`, `sHeight`, `scale`, `maxScale`, `minScale`, `panLimit`, and `orientation` are now public properties again.
+    - Restored `getCenter()`, `getState()`, and other getter methods.
+    - Restored `setOrientation()`, `setMaxScale()`, etc., for compatibility, while favoring the property-based API.
+- **Missing Classes**: Re-added `DefaultOnImageEventListener` and `ImageDecodeException`.
+- **API Signatures**: Updated `OnImageEventListener` to use `Throwable` instead of `Exception` in error callbacks to match original signatures.
+- **Decoder Factories**: Re-added `Factory` classes for `SkiaImageRegionDecoder` and `SkiaSSIVImageDecoder` to support legacy configuration patterns.
+- **Inheritance**: Marked `recycle()` as `open` to allow overrides in subclasses.
+
 ## [1.1.0] - 2026-04-28
 
 ### Added

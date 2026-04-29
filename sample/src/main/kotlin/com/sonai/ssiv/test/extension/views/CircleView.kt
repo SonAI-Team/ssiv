@@ -31,9 +31,9 @@ class CircleView @JvmOverloads constructor(
             return
         }
 
-        sCenter.set(getSWidth().toFloat() / 2, getSHeight().toFloat() / 2)
+        sCenter.set(sWidth.toFloat() / 2, sHeight.toFloat() / 2)
         sourceToViewCoord(sCenter, vCenter)
-        val radius = (getScale() * getSWidth()) * 0.25f
+        val radius = (scale * sWidth) * 0.25f
 
         paint.isAntiAlias = true
         paint.style = Paint.Style.STROKE

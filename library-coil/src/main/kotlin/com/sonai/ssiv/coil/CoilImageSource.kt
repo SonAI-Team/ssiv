@@ -8,6 +8,6 @@ import com.sonai.ssiv.decoder.DecoderFactory
 
 @Suppress("unused")
 fun SubsamplingScaleImageView.setCoilImage(uri: Uri, imageLoader: ImageLoader) {
-    setRegionDecoderFactory(DecoderFactory { CoilImageRegionDecoder(imageLoader) })
+    regionDecoderFactory = DecoderFactory { CoilImageRegionDecoder(imageLoader) }
     setImage(ImageSource.uri(uri))
 }

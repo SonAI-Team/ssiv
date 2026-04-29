@@ -35,7 +35,7 @@ class ConfigurationActivity : AbstractPagesActivity(
         if (page == 0) {
             view.setMinimumDpi(50)
         } else {
-            view.setMaxScale(2F)
+            view.maxScale = 2F
         }
         if (page == 1) {
             view.setMinimumTileDpi(50)
@@ -53,9 +53,9 @@ class ConfigurationActivity : AbstractPagesActivity(
             view.setDoubleTapZoomScale(1F)
         }
         when (page) {
-            7 -> view.setPanLimit(SubsamplingScaleImageView.PAN_LIMIT_CENTER)
-            8 -> view.setPanLimit(SubsamplingScaleImageView.PAN_LIMIT_OUTSIDE)
-            else -> view.setPanLimit(SubsamplingScaleImageView.PAN_LIMIT_INSIDE)
+            7 -> view.panLimit = SubsamplingScaleImageView.PAN_LIMIT_CENTER
+            8 -> view.panLimit = SubsamplingScaleImageView.PAN_LIMIT_OUTSIDE
+            else -> view.panLimit = SubsamplingScaleImageView.PAN_LIMIT_INSIDE
         }
         view.setDebug(page == 9)
         if (page == 2) {

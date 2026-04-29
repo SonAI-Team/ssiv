@@ -28,17 +28,17 @@ class SubsamplingScaleImageViewTest {
     fun `test initial state`() {
         assertFalse(view.isReady)
         assertFalse(view.isImageLoaded)
-        assertEquals(0, view.getOrientation())
-        assertEquals(0f, view.getScale())
+        assertEquals(0, view.orientation)
+        assertEquals(0f, view.scale)
     }
 
     @Test
     fun `test orientation settings`() {
-        view.setOrientation(SubsamplingScaleImageView.ORIENTATION_90)
-        assertEquals(90, view.getOrientation())
+        view.orientation = SubsamplingScaleImageView.ORIENTATION_90
+        assertEquals(90, view.orientation)
 
-        view.setOrientation(SubsamplingScaleImageView.ORIENTATION_180)
-        assertEquals(180, view.getOrientation())
+        view.orientation = SubsamplingScaleImageView.ORIENTATION_180
+        assertEquals(180, view.orientation)
     }
 
     @Test
@@ -58,12 +58,12 @@ class SubsamplingScaleImageViewTest {
 
     @Test
     fun `test max and min scale`() {
-        view.setMaxScale(5f)
-        assertEquals(5f, view.getMaxScale())
+        view.maxScale = 5f
+        assertEquals(5f, view.maxScale)
 
-        view.setMinimumScaleType(SubsamplingScaleImageView.SCALE_TYPE_CUSTOM)
-        view.setMinScale(0.1f)
-        assertEquals(0.1f, view.getMinScale())
+        view.minimumScaleType = SubsamplingScaleImageView.SCALE_TYPE_CUSTOM
+        view.minScale = 0.1f
+        assertEquals(0.1f, view.minScale)
     }
 
     @Test

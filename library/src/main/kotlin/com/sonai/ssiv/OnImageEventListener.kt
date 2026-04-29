@@ -18,20 +18,25 @@ interface OnImageEventListener {
     /**
      * Called when a preview image could not be loaded.
      */
-    fun onPreviewLoadError(e: Exception) {}
+    fun onPreviewLoadError(e: Throwable) {}
 
     /**
      * Indicates an error initializing the decoder or loading the full size bitmap.
      */
-    fun onImageLoadError(e: Exception) {}
+    fun onImageLoadError(e: Throwable) {}
 
     /**
      * Called when an image tile could not be loaded.
      */
-    fun onTileLoadError(e: Exception) {}
+    fun onTileLoadError(e: Throwable) {}
 
     /**
      * Called when a bitmap set using ImageSource.cachedBitmap is no longer being used.
      */
     fun onPreviewReleased() {}
 }
+
+/**
+ * A default implementation of [OnImageEventListener] where all methods are empty.
+ */
+open class DefaultOnImageEventListener : OnImageEventListener
