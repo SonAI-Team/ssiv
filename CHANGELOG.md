@@ -45,4 +45,5 @@
 - Improved memory management in the sample application.
 
 ---
+[1.1.1]: https://github.com/SonAI-Team/ssiv/compare/1.1.0...1.1.1
 [1.1.0]: https://github.com/SonAI-Team/ssiv/compare/1.0.2...1.1.0
