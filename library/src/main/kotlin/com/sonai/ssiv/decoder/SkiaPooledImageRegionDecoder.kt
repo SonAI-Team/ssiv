@@ -11,10 +11,16 @@ import android.graphics.BitmapRegionDecoder
 import android.graphics.Point
 import android.graphics.Rect
 import android.net.Uri
+import android.os.Build
 import android.util.Log
 import androidx.annotation.Keep
+import androidx.annotation.RequiresApi
 import androidx.core.text.isDigitsOnly
 import com.sonai.ssiv.SubsamplingScaleImageView
+import com.sonai.ssiv.internal.URI_SCHEME_RES
+import com.sonai.ssiv.internal.URI_SCHEME_ZIP
+import com.sonai.ssiv.internal.fixUriPrefix
+import com.sonai.ssiv.internal.useZipEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -52,8 +58,9 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
     private val decoderLock: ReadWriteLock = ReentrantReadWriteLock(true)
     private val allDecoders = ArrayList<BitmapRegionDecoder>()
 
-    private var bitmapConfig: Bitmap.Config = bitmapConfig
-        ?: SubsamplingScaleImageView.getPreferredBitmapConfig()
+    @RequiresApi(Build.VERSION_CODES.O)
+    private var bitmapConfig: Bitmap.Config =
+        bitmapConfig ?: SubsamplingScaleImageView.getPreferredBitmapConfig()
         ?: Bitmap.Config.HARDWARE
 
     private var context: Context? = null
@@ -69,6 +76,7 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
     private var memoryThresholdMb = 20
     private var memoryThreshold = 20L * 1024 * 1024
 
+    @RequiresApi(Build.VERSION_CODES.S)
     override fun init(context: Context, uri: Uri): Point {
         this.context = context
         this.uri = uri
@@ -78,6 +86,7 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         return this.imageDimensions
     }
 
+    @RequiresApi(Build.VERSION_CODES.S)
     override fun init(context: Context, buffer: ByteBuffer): Point {
         this.context = context
         this.buffer = buffer
@@ -92,7 +101,8 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         if (activityManager != null) {
             val memoryInfo = ActivityManager.MemoryInfo()
             activityManager.getMemoryInfo(memoryInfo)
-            val totalRamGb = memoryInfo.totalMem.toDouble() / (BYTES_PER_KB * BYTES_PER_KB * BYTES_PER_KB)
+            val totalRamGb =
+                memoryInfo.totalMem.toDouble() / (BYTES_PER_KB * BYTES_PER_KB * BYTES_PER_KB)
 
             when {
                 totalRamGb > 6 -> {
@@ -120,14 +130,14 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.S)
     @Suppress("TooGenericExceptionCaught")
     private fun lazyInit() {
         if (lazyInited.compareAndSet(false, true) && fileLength < Long.MAX_VALUE) {
             debug("Starting lazy init of additional decoders")
             scope.launch {
                 while (isActive && decoderPool != null && allowAdditionalDecoder(
-                        allDecoders.size,
-                        fileLength
+                        allDecoders.size, fileLength
                     )
                 ) {
                     try {
@@ -144,6 +154,7 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.S)
     private fun initialiseDecoder() {
         val context = this.context ?: return
         var fileLength = Long.MAX_VALUE
@@ -167,9 +178,9 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
             BitmapRegionDecoder.newInstance(stream)
         } else {
             val uri = this.uri ?: return
-            val uriString = uri.toString()
+            val uriString = uri.toString().fixUriPrefix()
             when {
-                uriString.startsWith(RESOURCE_PREFIX) -> {
+                uri.scheme == URI_SCHEME_RES || uriString.startsWith(RESOURCE_PREFIX) -> {
                     val id = uri.pathSegments.firstOrNull { it.isDigitsOnly() }?.toIntOrNull() ?: 0
                     runCatching {
                         context.resources.openRawResourceFd(id).use { fileLength = it.length }
@@ -177,13 +188,21 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
                     BitmapRegionDecoder.newInstance(context.resources.openRawResource(id))
                 }
 
+                uri.scheme == URI_SCHEME_ZIP -> {
+                    uri.useZipEntry { file, entry ->
+                        fileLength = entry.size
+                        file.getInputStream(entry).use {
+                            BitmapRegionDecoder.newInstance(it)
+                        }
+                    }
+                }
+
                 uriString.startsWith(ASSET_PREFIX) -> {
                     val assetName = uriString.substring(ASSET_PREFIX.length)
                     runCatching { context.assets.openFd(assetName).use { fileLength = it.length } }
                     BitmapRegionDecoder.newInstance(
                         context.assets.open(
-                            assetName,
-                            AssetManager.ACCESS_RANDOM
+                            assetName, AssetManager.ACCESS_RANDOM
                         )
                     )
                 }
@@ -212,6 +231,7 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.S)
     override fun decodeRegion(sRect: Rect, sampleSize: Int): Bitmap {
         debug("Decode region $sRect on thread ${Thread.currentThread().name}")
         if (sRect.width() < imageDimensions.x || sRect.height() < imageDimensions.y) {
@@ -262,6 +282,7 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun setBitmapConfig(config: Bitmap.Config) {
         this.bitmapConfig = config
     }
@@ -292,8 +313,7 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
                 val estimatedMemoryMb =
                     (fileLength * numberOfDecoders) / (BYTES_PER_KB * BYTES_PER_KB)
                 debug(
-                    "Additional decoder allowed, current count is $numberOfDecoders, " +
-                            "estimated native memory ${estimatedMemoryMb}Mb"
+                    "Additional decoder allowed, current count is $numberOfDecoders, " + "estimated native memory ${estimatedMemoryMb}Mb"
                 )
                 true
             }

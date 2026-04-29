@@ -15,6 +15,7 @@ class Anim {
     var duration = DEFAULT_DURATION
     var interruptible = true
     var easing = SubsamplingScaleImageView.EASE_IN_OUT_QUAD
+    var interpolator: android.view.animation.Interpolator? = null
     var origin = SubsamplingScaleImageView.ORIGIN_ANIM
     var time = System.currentTimeMillis()
     var listener: OnAnimationEventListener? = null

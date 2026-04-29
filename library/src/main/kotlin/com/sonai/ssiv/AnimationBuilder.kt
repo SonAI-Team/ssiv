@@ -11,6 +11,7 @@ class AnimationBuilder {
     private val vFocus: PointF?
     private var duration: Long = DEFAULT_DURATION
     private var easing = SubsamplingScaleImageView.EASE_IN_OUT_QUAD
+    private var interpolator: android.view.animation.Interpolator? = null
     private var origin = SubsamplingScaleImageView.ORIGIN_ANIM
     private var interruptible = true
     private var panLimited = true
@@ -63,7 +64,7 @@ class AnimationBuilder {
     }
 
     fun withInterpolator(interpolator: android.view.animation.Interpolator?): AnimationBuilder {
-        // Not supported in new version, but added for compatibility
+        this.interpolator = interpolator
         return this
     }
 
@@ -115,6 +116,7 @@ class AnimationBuilder {
             this.duration = this@AnimationBuilder.duration
             this.interruptible = this@AnimationBuilder.interruptible
             this.easing = this@AnimationBuilder.easing
+            this.interpolator = this@AnimationBuilder.interpolator
             this.origin = this@AnimationBuilder.origin
             this.listener = this@AnimationBuilder.listener
         }

@@ -12,6 +12,10 @@ import android.net.Uri
 import androidx.annotation.Keep
 import androidx.core.text.isDigitsOnly
 import com.sonai.ssiv.SubsamplingScaleImageView
+import com.sonai.ssiv.internal.URI_SCHEME_RES
+import com.sonai.ssiv.internal.URI_SCHEME_ZIP
+import com.sonai.ssiv.internal.fixUriPrefix
+import com.sonai.ssiv.internal.useZipEntry
 import java.nio.ByteBuffer
 import java.util.concurrent.locks.Lock
 import java.util.concurrent.locks.ReadWriteLock
@@ -48,15 +52,27 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
 
     @Suppress("DEPRECATION")
     override fun init(context: Context, uri: Uri): Point {
-        val uriString = uri.toString()
+        val uriString = uri.toString().fixUriPrefix()
         val newDecoder = when {
-            uriString.startsWith(RESOURCE_PREFIX) -> {
+            uri.scheme == URI_SCHEME_RES || uriString.startsWith(RESOURCE_PREFIX) -> {
                 val id = uri.pathSegments.firstOrNull { it.isDigitsOnly() }?.toIntOrNull() ?: 0
                 context.resources.openRawResource(id).use {
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
                         BitmapRegionDecoder.newInstance(it)
                     } else {
                         BitmapRegionDecoder.newInstance(it, false)
+                    }
+                }
+            }
+
+            uri.scheme == URI_SCHEME_ZIP -> {
+                uri.useZipEntry { file, entry ->
+                    file.getInputStream(entry).use {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                            BitmapRegionDecoder.newInstance(it)
+                        } else {
+                            BitmapRegionDecoder.newInstance(it, false)
+                        }
                     }
                 }
             }
@@ -158,7 +174,8 @@ class SkiaImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = nu
         return decoderLock.readLock()
     }
 
-    class Factory(private val bitmapConfig: Bitmap.Config? = null) : DecoderFactory<SkiaImageRegionDecoder> {
+    class Factory(private val bitmapConfig: Bitmap.Config? = null) :
+        DecoderFactory<SkiaImageRegionDecoder> {
         override fun make(): SkiaImageRegionDecoder = SkiaImageRegionDecoder(bitmapConfig)
     }
 

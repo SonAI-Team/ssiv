@@ -8,6 +8,9 @@ import android.net.Uri
 import androidx.annotation.Keep
 import androidx.core.text.isDigitsOnly
 import com.sonai.ssiv.SubsamplingScaleImageView
+import com.sonai.ssiv.internal.URI_SCHEME_RES
+import com.sonai.ssiv.internal.URI_SCHEME_ZIP
+import com.sonai.ssiv.internal.useZipEntry
 import java.nio.ByteBuffer
 
 /**
@@ -26,16 +29,26 @@ class BitmapFactorySSIVImageDecoder @Keep constructor(bitmapConfig: Bitmap.Confi
         }
 
         val bitmap = when {
-            uri.toString().startsWith(RESOURCE_PREFIX) -> {
+            uri.scheme == URI_SCHEME_RES || uri.toString().startsWith(RESOURCE_PREFIX) -> {
                 val id = uri.pathSegments.firstOrNull { it.isDigitsOnly() }?.toIntOrNull() ?: 0
                 BitmapFactory.decodeResource(context.resources, id, options)
             }
+
+            uri.scheme == URI_SCHEME_ZIP -> {
+                uri.useZipEntry { file, entry ->
+                    file.getInputStream(entry).use {
+                        BitmapFactory.decodeStream(it, null, options)
+                    }
+                }
+            }
+
             uri.toString().startsWith(ASSET_PREFIX) -> {
                 val assetName = uri.toString().substring(ASSET_PREFIX.length)
                 context.assets.open(assetName).use {
                     BitmapFactory.decodeStream(it, null, options)
                 }
             }
+
             else -> {
                 context.contentResolver.openInputStream(uri).use {
                     BitmapFactory.decodeStream(it, null, options)
@@ -58,7 +71,8 @@ class BitmapFactorySSIVImageDecoder @Keep constructor(bitmapConfig: Bitmap.Confi
             b
         }
         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
-        return bitmap ?: throw IllegalStateException("BitmapFactory failed to decode bitmap from ByteBuffer")
+        return bitmap
+            ?: throw IllegalStateException("BitmapFactory failed to decode bitmap from ByteBuffer")
     }
 
     companion object {

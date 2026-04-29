@@ -4,6 +4,9 @@ import android.graphics.Bitmap
 import android.graphics.Rect
 import android.net.Uri
 import androidx.core.net.toUri
+import com.sonai.ssiv.internal.URI_PATH_ASSET
+import com.sonai.ssiv.internal.URI_SCHEME_FILE
+import com.sonai.ssiv.internal.URI_SCHEME_ZIP
 import java.io.File
 import java.io.UnsupportedEncodingException
 import java.net.URLDecoder
@@ -54,7 +57,7 @@ class ImageSource {
 
     private constructor(uri: Uri) {
         var mutableUri = uri
-        // #114 If file doesn't exist, attempt to url decode the URI and try again
+        // If file doesn't exist, attempt to url decode the URI and try again
         val uriString = mutableUri.toString()
         if (uriString.startsWith(FILE_SCHEME)) {
             val uriFile = File(uriString.substring(FILE_SCHEME.length - 1))
@@ -89,9 +92,20 @@ class ImageSource {
         fun resource(resId: Int): ImageSource = ImageSource(resId)
 
         @JvmStatic
-        fun asset(assetName: String): ImageSource {
-            return uri(ASSET_SCHEME + assetName)
-        }
+        fun asset(assetName: String): ImageSource = Uri(
+            Uri.fromParts(URI_SCHEME_FILE, URI_PATH_ASSET + assetName, null)
+        )
+
+        @JvmStatic
+        fun file(file: File): ImageSource = Uri(Uri.fromFile(file))
+
+        @JvmStatic
+        fun zip(file: File, entry: String): ImageSource = Uri(
+            Uri.fromParts(URI_SCHEME_ZIP, file.absolutePath, entry)
+        )
+
+        @JvmStatic
+        fun zipEntry(file: File, entry: String): ImageSource = zip(file, entry)
 
         @JvmStatic
         fun uri(uri: String): ImageSource {
@@ -100,7 +114,7 @@ class ImageSource {
                 if (mutableUri.startsWith("/")) {
                     mutableUri = mutableUri.substring(1)
                 }
-                mutableUri = FILE_SCHEME + mutableUri
+                mutableUri = "$FILE_SCHEME$mutableUri"
             }
             return ImageSource(mutableUri.toUri())
         }
@@ -119,6 +133,10 @@ class ImageSource {
         @JvmStatic
         @Suppress("unused")
         fun cachedBitmap(bitmap: Bitmap): ImageSource = ImageSource(bitmap, true)
+
+        @JvmStatic
+        @Suppress("FunctionName")
+        private fun Uri(uri: Uri): ImageSource = ImageSource(uri)
     }
 
     fun tilingEnabled(): ImageSource = tiling(true)

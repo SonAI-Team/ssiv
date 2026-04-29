@@ -9,6 +9,13 @@ class Tile {
 
     @Volatile
     var bitmap: Bitmap? = null
+        set(value) {
+            if (field != value) {
+                field?.recycle()
+                field = value
+                isValid = true
+            }
+        }
 
     @Volatile
     var loading = false
@@ -16,10 +23,18 @@ class Tile {
     @Volatile
     var visible = false
 
+    @Volatile
+    var isValid = false
+
     // Volatile as these are used between the rendering and loading threads
     @Volatile
     var vRect: Rect? = null
 
     @Volatile
     var fileSRect: Rect? = null
+
+    fun recycle() {
+        visible = false
+        bitmap = null
+    }
 }

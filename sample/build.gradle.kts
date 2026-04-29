@@ -53,7 +53,7 @@ dependencies {
     implementation(project(":library"))
     implementation(project(":library-compose"))
     implementation(project(":library-coil"))
-    
+
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
@@ -61,7 +61,7 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material.icons.core)
-    
+
     debugImplementation(libs.leakcanary.android)
 
     implementation(libs.androidx.annotation)

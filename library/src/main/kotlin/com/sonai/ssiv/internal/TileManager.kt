@@ -144,19 +144,26 @@ class TileManager {
 
     private fun tileVisible(tile: Tile, sVisRect: RectF): Boolean {
         return !(sVisRect.left > (tile.sRect?.right ?: 0) ||
-            (tile.sRect?.left ?: 0) > sVisRect.right ||
-            sVisRect.top > (tile.sRect?.bottom ?: 0) ||
-            (tile.sRect?.top ?: 0) > sVisRect.bottom)
+                (tile.sRect?.left ?: 0) > sVisRect.right ||
+                sVisRect.top > (tile.sRect?.bottom ?: 0) ||
+                (tile.sRect?.top ?: 0) > sVisRect.bottom)
     }
 
     fun clear() {
         tileMap?.values?.forEach { tileList ->
             tileList.forEach { tile ->
-                tile.bitmap?.recycle()
-                tile.bitmap = null
+                tile.recycle()
                 tile.loading = false
             }
         }
         tileMap = null
+    }
+
+    fun invalidateAll() {
+        tileMap?.values?.forEach { tileList ->
+            tileList.forEach { tile ->
+                tile.isValid = false
+            }
+        }
     }
 }

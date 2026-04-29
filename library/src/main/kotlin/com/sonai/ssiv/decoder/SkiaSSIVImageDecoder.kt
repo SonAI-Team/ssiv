@@ -11,6 +11,9 @@ import androidx.annotation.Keep
 import androidx.annotation.RequiresApi
 import androidx.core.text.isDigitsOnly
 import com.sonai.ssiv.SubsamplingScaleImageView
+import com.sonai.ssiv.internal.URI_SCHEME_RES
+import com.sonai.ssiv.internal.URI_SCHEME_ZIP
+import com.sonai.ssiv.internal.useZipEntry
 import java.io.IOException
 import java.nio.ByteBuffer
 
@@ -34,9 +37,16 @@ class SkiaSSIVImageDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null
 
     override fun decode(context: Context, uri: Uri): Bitmap {
         val source = when {
-            uri.toString().startsWith(RESOURCE_PREFIX) -> {
+            uri.scheme == URI_SCHEME_RES || uri.toString().startsWith(RESOURCE_PREFIX) -> {
                 val id = uri.pathSegments.firstOrNull { it.isDigitsOnly() }?.toIntOrNull() ?: 0
                 ImageDecoder.createSource(context.resources, id)
+            }
+
+            uri.scheme == URI_SCHEME_ZIP -> {
+                val bytes = uri.useZipEntry { file, zipEntry ->
+                    file.getInputStream(zipEntry).use { it.readBytes() }
+                }
+                ImageDecoder.createSource(ByteBuffer.wrap(bytes))
             }
 
             uri.toString().startsWith(ASSET_PREFIX) -> {
@@ -83,7 +93,8 @@ class SkiaSSIVImageDecoder @Keep constructor(bitmapConfig: Bitmap.Config? = null
         }
     }
 
-    class Factory(private val bitmapConfig: Bitmap.Config? = null) : DecoderFactory<SkiaSSIVImageDecoder> {
+    class Factory(private val bitmapConfig: Bitmap.Config? = null) :
+        DecoderFactory<SkiaSSIVImageDecoder> {
         override fun make(): SkiaSSIVImageDecoder = SkiaSSIVImageDecoder(bitmapConfig)
     }
 
