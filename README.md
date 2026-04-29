@@ -24,15 +24,18 @@ SSIV uses a two-tier loading strategy to display massive images:
 ## Features
 
 * **Tiling & Subsampling:** Load massive images that exceed standard memory limits.
+* **Expanded Sources:** Load images from assets, resources, files, and even directly from **ZIP archives** using `ImageSource.zipEntry`.
 * **Jetpack Compose Support:** Native `SubsamplingImage` Composable for idiomatic integration.
 * **Coil Integration:** Seamlessly use Coil's disk cache and loading pipeline for your images.
 * **Modern Stack:** 100% Kotlin, Coroutines for async loading, and AndroidX support (**minSdk 23**).
-* **Gestures:** Fluid one-finger panning, precise two-finger pinch-to-zoom, quick scale, and fling
-  momentum.
-* **Animation:** Built-in methods for animating scale and focal point with adjustable duration and
-  easing.
-* **Easy Integration:** Built for `ViewPager` galleries, supports state restoration, and easy to
-  extend.
+* **Enhanced Gestures & Input:** 
+    * Fluid one-finger panning and two-finger pinch-to-zoom.
+    * **Mouse Support:** Zoom seamlessly using the scroll wheel.
+    * **Keyboard/D-pad:** Navigate and scale using arrow keys, D-pad, and +/- keys.
+    * Quick scale and fling momentum.
+* **Animation:** Built-in methods for animating scale and focal point with support for custom **Interpolators** and easing styles.
+* **Smart Memory Management:** Built-in support for **downsampling** and parallel decoding via `SkiaPooledImageRegionDecoder`.
+* **State Management:** Automatic **state restoration** across configuration changes (orientation, theme, etc.) and `bindToLifecycle` support.
 
 ## Installation
 
@@ -55,15 +58,17 @@ dependencies {
 
 The library automatically adapts its decoding engine and features based on the device's Android version:
 
-| Feature / Format | SDK 23+ (6.0) | SDK 26+ (8.0) | SDK 28+ (9.0) | SDK 31+ (12) | SDK 34+ (14) |
-|:---|:-------------:|:---:|:---:|:---:|:---:|
-| **Core Tiling & Zoom** |       ✅       | ✅ | ✅ | ✅ | ✅ |
-| **JPEG, PNG, WebP** |       ✅       | ✅ | ✅ | ✅ | ✅ |
-| **Hardware Bitmaps** |       ❌       | ✅ | ✅ | ✅ | ✅ |
-| **Wide Gamut (P3)** |       ❌       | ✅ | ✅ | ✅ | ✅ |
-| **ImageDecoder API** |       ❌       | ❌ | ✅ | ✅ | ✅ |
-| **AVIF Support** |       ❌       | ❌ | ❌ | ✅ | ✅ |
-| **Ultra HDR (Gainmaps)**|       ❌       | ❌ | ❌ | ❌ | ✅ |
+| Feature / Format         | SDK 23+ (6.0) | SDK 26+ (8.0) | SDK 28+ (9.0) | SDK 31+ (12) | SDK 34+ (14) |
+|:-------------------------|:-------------:|:-------------:|:-------------:|:------------:|:------------:|
+| **Core Tiling & Zoom**   |       ✅       |       ✅       |       ✅       |      ✅       |      ✅       |
+| **ZIP Archive Support**  |       ✅       |       ✅       |       ✅       |      ✅       |      ✅       |
+| **Mouse & Keyboard**     |       ✅       |       ✅       |       ✅       |      ✅       |      ✅       |
+| **Parallel Decoding**    |       ✅       |       ✅       |       ✅       |      ✅       |      ✅       |
+| **Hardware Bitmaps**     |       ❌       |       ✅       |       ✅       |      ✅       |      ✅       |
+| **Wide Gamut (P3)**      |       ❌       |       ✅       |       ✅       |      ✅       |      ✅       |
+| **ImageDecoder API**     |       ❌       |       ❌       |       ✅       |      ✅       |      ✅       |
+| **AVIF Support**         |       ❌       |       ❌       |       ❌       |      ✅       |      ✅       |
+| **Ultra HDR (Gainmaps)** |       ❌       |       ❌       |       ❌       |      ❌       |      ✅       |
 
 ## Supported Formats
 

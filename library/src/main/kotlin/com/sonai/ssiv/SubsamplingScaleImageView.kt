@@ -2747,8 +2747,6 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
     /**
      * Enable or disable downsampling. Added for compatibility.
      */
-    var downSampling: Boolean = false
-
     /**
      * Externally change the scale and translation of the source image. This may be used with getCenter() and getScale()
      * to restore the scale and zoom after a screen rotate.
@@ -2869,6 +2867,10 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
         return quickScaleEnabled
     }
 
+    fun isQuickScaleEnabled(): Boolean {
+        return quickScaleEnabled
+    }
+
     /**
      * Enable or disable double tap & swipe to zoom.
      * @param quickScaleEnabled true to enable quick scale, false to disable.
@@ -2963,6 +2965,15 @@ open class SubsamplingScaleImageView @JvmOverloads constructor(
      * responsiveness, but it can result in tiles being loaded and discarded more rapidly than
      * necessary and reduce the animation frame rate on old/cheap devices. Disable this on older
      * devices if you see poor performance. Tiles will then be loaded only when gestures and animations
+     * are completed.
+     * @return true if eager loading is enabled.
+     */
+    fun isEagerLoadingEnabled(): Boolean {
+        return eagerLoadingEnabled
+    }
+
+    /**
+     * Enable or disable eager loading of tiles. When enabled, tiles are loaded while gestures and animations
      * are completed.
      * @param eagerLoadingEnabled true to enable loading during gestures, false to delay loading until gestures end
      */

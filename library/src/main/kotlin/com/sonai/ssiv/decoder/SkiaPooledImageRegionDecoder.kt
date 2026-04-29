@@ -14,7 +14,6 @@ import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.annotation.Keep
-import androidx.annotation.RequiresApi
 import androidx.core.text.isDigitsOnly
 import com.sonai.ssiv.SubsamplingScaleImageView
 import com.sonai.ssiv.internal.URI_SCHEME_RES
@@ -58,10 +57,9 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
     private val decoderLock: ReadWriteLock = ReentrantReadWriteLock(true)
     private val allDecoders = ArrayList<BitmapRegionDecoder>()
 
-    @RequiresApi(Build.VERSION_CODES.O)
     private var bitmapConfig: Bitmap.Config =
         bitmapConfig ?: SubsamplingScaleImageView.getPreferredBitmapConfig()
-        ?: Bitmap.Config.HARDWARE
+        ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) Bitmap.Config.HARDWARE else Bitmap.Config.ARGB_8888
 
     private var context: Context? = null
     private var uri: Uri? = null
@@ -76,7 +74,6 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
     private var memoryThresholdMb = 20
     private var memoryThreshold = 20L * 1024 * 1024
 
-    @RequiresApi(Build.VERSION_CODES.S)
     override fun init(context: Context, uri: Uri): Point {
         this.context = context
         this.uri = uri
@@ -86,7 +83,6 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         return this.imageDimensions
     }
 
-    @RequiresApi(Build.VERSION_CODES.S)
     override fun init(context: Context, buffer: ByteBuffer): Point {
         this.context = context
         this.buffer = buffer
@@ -130,7 +126,6 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.S)
     @Suppress("TooGenericExceptionCaught")
     private fun lazyInit() {
         if (lazyInited.compareAndSet(false, true) && fileLength < Long.MAX_VALUE) {
@@ -154,7 +149,7 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.S)
+    @Suppress("TooGenericExceptionCaught", "DEPRECATION")
     private fun initialiseDecoder() {
         val context = this.context ?: return
         var fileLength = Long.MAX_VALUE
@@ -169,13 +164,17 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
                 }
 
                 override fun read(b: ByteArray, off: Int, len: Int): Int {
-                    if (!buf.hasRemaining()) return -1
-                    val count = minOf(len, buf.remaining())
-                    buf.get(b, off, count)
+                    if (!buffer!!.hasRemaining()) return -1
+                    val count = minOf(len, buffer!!.remaining())
+                    buffer!!.get(b, off, count)
                     return count
                 }
             }
-            BitmapRegionDecoder.newInstance(stream)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                BitmapRegionDecoder.newInstance(stream)
+            } else {
+                BitmapRegionDecoder.newInstance(stream, false)
+            }
         } else {
             val uri = this.uri ?: return
             val uriString = uri.toString().fixUriPrefix()
@@ -185,14 +184,24 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
                     runCatching {
                         context.resources.openRawResourceFd(id).use { fileLength = it.length }
                     }
-                    BitmapRegionDecoder.newInstance(context.resources.openRawResource(id))
+                    context.resources.openRawResource(id).use {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            BitmapRegionDecoder.newInstance(it)
+                        } else {
+                            BitmapRegionDecoder.newInstance(it, false)
+                        }
+                    }
                 }
 
                 uri.scheme == URI_SCHEME_ZIP -> {
                     uri.useZipEntry { file, entry ->
                         fileLength = entry.size
                         file.getInputStream(entry).use {
-                            BitmapRegionDecoder.newInstance(it)
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                BitmapRegionDecoder.newInstance(it)
+                            } else {
+                                BitmapRegionDecoder.newInstance(it, false)
+                            }
                         }
                     }
                 }
@@ -200,11 +209,13 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
                 uriString.startsWith(ASSET_PREFIX) -> {
                     val assetName = uriString.substring(ASSET_PREFIX.length)
                     runCatching { context.assets.openFd(assetName).use { fileLength = it.length } }
-                    BitmapRegionDecoder.newInstance(
-                        context.assets.open(
-                            assetName, AssetManager.ACCESS_RANDOM
-                        )
-                    )
+                    context.assets.open(assetName, AssetManager.ACCESS_RANDOM).use {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            BitmapRegionDecoder.newInstance(it)
+                        } else {
+                            BitmapRegionDecoder.newInstance(it, false)
+                        }
+                    }
                 }
 
                 else -> {
@@ -214,7 +225,11 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
                             ?.use { fileLength = it.length }
                     }
                     contentResolver.openInputStream(uri)?.use {
-                        BitmapRegionDecoder.newInstance(it)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            BitmapRegionDecoder.newInstance(it)
+                        } else {
+                            BitmapRegionDecoder.newInstance(it, false)
+                        }
                     }
                 }
             }
@@ -231,7 +246,6 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.S)
     override fun decodeRegion(sRect: Rect, sampleSize: Int): Bitmap {
         debug("Decode region $sRect on thread ${Thread.currentThread().name}")
         if (sRect.width() < imageDimensions.x || sRect.height() < imageDimensions.y) {
@@ -282,7 +296,6 @@ open class SkiaPooledImageRegionDecoder @Keep constructor(bitmapConfig: Bitmap.C
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     override fun setBitmapConfig(config: Bitmap.Config) {
         this.bitmapConfig = config
     }

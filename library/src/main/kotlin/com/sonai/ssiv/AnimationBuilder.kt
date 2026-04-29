@@ -73,7 +73,7 @@ class AnimationBuilder {
         return this
     }
 
-    internal fun withPanLimited(panLimited: Boolean): AnimationBuilder {
+    fun withPanLimited(panLimited: Boolean): AnimationBuilder {
         this.panLimited = panLimited
         return this
     }
